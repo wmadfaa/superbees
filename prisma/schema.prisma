@@ -1,0 +1,199 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Entity {
+  id String @id @default(cuid())
+
+  firstname String
+  lastname  String
+  birthdate DateTime
+  gender    String
+  country   String
+  browser   Json?
+
+  airdrops Airdrop[]
+  farmLogs FarmLog[]
+
+  emailId String @unique
+  email   Email  @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum AirdropStatus {
+  UNKNOWN
+  PENDING
+  VERIFIED
+  BLOCKED
+}
+
+model Airdrop {
+  id       String        @id @default(cuid())
+  name     String
+  status   AccountStatus
+  metadata Json?
+
+  walletId String @unique
+  wallet   Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  entityId String
+  entity   Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Wallet {
+  id String @id @default(cuid())
+
+  type       String
+  publicKey  String
+  privateKey String
+  mnemonic   String
+  password   String
+  metadata   Json?
+  Airdrop    Airdrop?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([type, publicKey])
+}
+
+enum EmailStatus {
+  UNKNOWN
+  PENDING
+  VERIFIED
+  BLOCKED
+}
+
+enum EmailPlatform {
+  TUTANOTA
+  PROTONMAIL
+  GMAIL
+}
+
+model Email {
+  id String @id @default(cuid())
+
+  platform EmailPlatform
+  username String
+  password String
+  status   EmailStatus
+  metadata Json?
+  entity   Entity?
+  accounts Account[]
+
+  parentId         String?
+  parentEmail      Email?    @relation("EmailToEmail", fields: [parentId], references: [id], onDelete: Cascade)
+  childEmails      Email[]   @relation("EmailToEmail")
+  lastStatusUpdate DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([platform, username])
+}
+
+enum AccountStatus {
+  UNKNOWN
+  PENDING
+  VERIFIED
+  BLOCKED
+}
+
+enum AccountPlatform {
+  TWITTER
+}
+
+model Account {
+  id String @id @default(cuid())
+
+  platform AccountPlatform
+  username String?
+  password String
+  status   AccountStatus
+  metadata Json?
+
+  emailId String
+  email   Email  @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([platform, emailId])
+}
+
+enum JobType {
+  cron
+  date
+}
+
+enum JobStatus {
+  pending
+  running
+  completed
+  failed
+}
+
+enum SessionType {
+  farm
+  task
+}
+
+model JobSession {
+  id     String      @id @default(cuid())
+  type   SessionType
+  name   String
+  spread Int
+  jobs   Job[]
+  chain  Json[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Job {
+  id           String     @id @default(cuid())
+  status       JobStatus
+  type         JobType
+  payload      Json
+  priority     Int
+  logs         JobLog[]
+  jobSessionId String
+  failedCount  Int?
+  jobSession   JobSession @relation(fields: [jobSessionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FarmLog {
+  id       String    @id @default(cuid())
+  entityId String
+  entity   Entity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  script   String
+  status   JobStatus
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([script, entityId])
+}
+
+model JobLog {
+  id    String @id @default(cuid())
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId String
+  text  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

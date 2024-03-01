@@ -2,6 +2,7 @@
   "name": "superbees",
   "version": "0.0.0",
   "dependencies": {
+    "@prisma/client": "^5.10.2",
     "@types/async": "^3.2.24",
     "@types/lodash": "^4.14.202",
     "@types/node": "^20.11.24",
@@ -9,6 +10,7 @@
     "lodash": "^4.17.21",
     "moment": "^2.30.1",
     "playwright": "^1.42.0",
+    "prisma": "^5.10.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }
