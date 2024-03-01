@@ -1,0 +1,10 @@
+{
+  "name": "@superbees/browser",
+  "version": "0.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "fingerprint-generator": "^2.1.49",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
+}
