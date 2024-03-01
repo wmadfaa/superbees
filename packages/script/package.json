@@ -5,6 +5,7 @@
   "dependencies": {
     "@superbees/browser": "workspace:*",
     "@superbees/proxy": "workspace:*",
-    "@superbees/uncaptcha": "workspace:*"
+    "@superbees/uncaptcha": "workspace:*",
+    "@superbees/resources": "workspace:*"
   }
 }
