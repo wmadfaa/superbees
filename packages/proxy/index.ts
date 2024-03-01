@@ -10,7 +10,7 @@ export interface IProxyUsers {
 
 export type ProxyType = "dataimpulse" | "nodemaven";
 
-class Proxy {
+class SuperbeesProxy {
   private readonly dataimpulse: DataimpulseProxy | null = null;
   private readonly nodemaven: NodemavenProxy | null = null;
 
@@ -77,4 +77,4 @@ class Proxy {
   }
 }
 
-export default Proxy;
+export default SuperbeesProxy;

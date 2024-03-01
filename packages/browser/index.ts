@@ -109,4 +109,6 @@ class SuperbeesBrowser {
   }
 }
 
+export type * from "./stealth";
+export type * from "./fingerprint";
 export default SuperbeesBrowser;

@@ -25,6 +25,7 @@ export interface NewInjectedPersistentContextOptions extends BaseContextOptions 
 }
 
 export type InjectedContext = Awaited<ReturnType<typeof newInjectedContext | typeof newInjectedPersistentContext>>;
+export type InjectedPage = Awaited<ReturnType<ReturnType<typeof makeNewPageFunction>>>;
 export async function newInjectedContext(browser: pw.Browser, options: NewInjectedContextOptions) {
   const generator = new FingerprintGenerator();
   const fingerprintWithHeaders = options?.fingerprint ?? generator.getFingerprint(options?.fingerprintOptions ?? {});

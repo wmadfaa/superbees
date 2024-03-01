@@ -1,0 +1,10 @@
+{
+  "name": "@superbees/script",
+  "version": "0.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@superbees/browser": "workspace:*",
+    "@superbees/proxy": "workspace:*",
+    "@superbees/uncaptcha": "workspace:*"
+  }
+}

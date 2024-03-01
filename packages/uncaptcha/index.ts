@@ -16,7 +16,7 @@ export enum CaptchaSolverType {
 
 export type TCaptchaSolverType = CaptchaSolverType | "2captcha" | "capsolver";
 
-class CaptchaSolver {
+class SuperbeesUncaptcha {
   public readonly twoCaptcha: TwoCaptcha | null = null;
   public readonly capsolver: Capsolver | null = null;
 
@@ -68,4 +68,4 @@ class CaptchaSolver {
   }
 }
 
-export default CaptchaSolver;
+export default SuperbeesUncaptcha;
