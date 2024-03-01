@@ -1,0 +1,8 @@
+{
+  "name": "@superbees/proxy",
+  "version": "0.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "proxy-chain": "^2.4.0"
+  }
+}
