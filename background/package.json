@@ -1,5 +1,8 @@
 {
   "name": "@superbees/background",
   "version": "0.0.0",
-  "main": "index.ts"
+  "main": "index.ts",
+  "dependencies": {
+    "@superbees/pm3": "workspace:*"
+  }
 }

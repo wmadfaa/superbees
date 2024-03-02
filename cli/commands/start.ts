@@ -1,11 +1,10 @@
 import type * as yargs from "yargs";
 
 import * as child_process from "child_process";
-import * as util from "util";
-
-import pm2 from "pm2";
 
 import dotenv from "@superbees/dotenv";
+
+import * as pm3 from "@superbees/pm3";
 
 import * as constants from "../helpers/constants";
 
@@ -14,19 +13,19 @@ class StartCommand implements yargs.CommandModule {
   public describe = "Start the background process";
 
   public async handler() {
-    await util.promisify(pm2.connect).bind(pm2)();
-    const apps = await util.promisify<pm2.ProcessDescription[]>(pm2.list).bind(pm2)();
-
-    if (!apps.find((app) => app.name === constants.BACKGROUND_PROCESS_NAME)) {
-      await util.promisify<pm2.StartOptions>(pm2.start).bind(pm2)({
+    await pm3.connect();
+    const background_process = await pm3.find_process((p) => p.name === constants.BACKGROUND_PROCESS_NAME);
+    if (!background_process) {
+      await pm3.start({
         env: dotenv,
+        wait_ready: true,
         name: constants.BACKGROUND_PROCESS_NAME,
         script: require.resolve("@superbees/background"),
         interpreter: child_process.execSync("which ts-node", { encoding: "utf8" }).trim(),
-        wait_ready: true,
       });
     }
-    await util.promisify(pm2.disconnect).bind(pm2)();
+    await pm3.disconnect();
+
     console.log(constants.BACKGROUND_PROCESS_NAME);
   }
 }

@@ -5,6 +5,7 @@
   "dependencies": {
     "@superbees/background": "workspace:*",
     "@superbees/dotenv": "workspace:*",
+    "@superbees/pm3": "workspace:*",
     "@types/yargs": "^17.0.32",
     "yargs": "^17.7.2"
   }
