@@ -1,0 +1,11 @@
+{
+  "name": "@superbees/cli",
+  "version": "0.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@superbees/background": "workspace:*",
+    "@superbees/dotenv": "workspace:*",
+    "@types/yargs": "^17.0.32",
+    "yargs": "^17.7.2"
+  }
+}

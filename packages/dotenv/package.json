@@ -1,0 +1,8 @@
+{
+  "name": "@superbees/dotenv",
+  "version": "0.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  }
+}

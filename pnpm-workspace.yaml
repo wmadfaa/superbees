@@ -1,3 +1,5 @@
 packages:
   - packages/*
+  - background
+  - cli
   - resources
