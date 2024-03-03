@@ -2,6 +2,7 @@
   "name": "superbees",
   "version": "0.0.0",
   "dependencies": {
+    "@faker-js/faker": "^8.4.1",
     "@prisma/client": "^5.10.2",
     "@types/async": "^3.2.24",
     "@types/lodash": "^4.14.202",

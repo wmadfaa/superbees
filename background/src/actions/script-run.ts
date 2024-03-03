@@ -1,7 +1,7 @@
 import * as pm3 from "@superbees/pm3";
 
 import { SuperbeesScriptFunctionOptions } from "@superbees/script/src/types";
-import { runScript, runScriptUtil } from "@superbees/script/src/helpers";
+import { runScript, runScriptUtil } from "@superbees/script/src/run";
 
 export interface HandleOnScriptRunArgs {
   name: string;

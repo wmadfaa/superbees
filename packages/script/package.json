@@ -3,9 +3,12 @@
   "version": "0.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@solana/web3.js": "^1.90.1",
     "@superbees/browser": "workspace:*",
     "@superbees/proxy": "workspace:*",
+    "@superbees/resources": "workspace:*",
     "@superbees/uncaptcha": "workspace:*",
-    "@superbees/resources": "workspace:*"
+    "bip39": "^3.1.0",
+    "ethers": "^6.11.1"
   }
 }

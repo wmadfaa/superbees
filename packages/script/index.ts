@@ -111,5 +111,5 @@ class SuperbeesScript {
 }
 
 export * from "./src/types";
-export * as helpers from "./src/helpers";
+export * as utils from "./src/utils";
 export default SuperbeesScript;

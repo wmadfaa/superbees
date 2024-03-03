@@ -1,6 +1,4 @@
-import { InjectedContext, InjectedPage } from "@superbees/browser";
-import path from "node:path";
-import { SuperbeesScriptFunctionOptions, SuperbeesScriptUtilFunctionOptions } from "./types";
+import { InjectedContext } from "@superbees/browser";
 
 export interface ExtensionData {
   id: string;
@@ -34,20 +32,3 @@ export async function getChromeExtensionsData(context: InjectedContext) {
 
   return extensionsData;
 }
-
-async function run<ARGS extends unknown[]>(type: "script" | "util", name: string, args: ARGS) {
-  const scriptsDir = path.join(__dirname, "../../../scripts");
-  const utilsDir = path.join(__dirname, "../../../scripts/utils");
-  const script = await import(path.join(type === "script" ? scriptsDir : utilsDir, name)).then((m) => m.default);
-  return script(...args);
-}
-
-export async function runScript<T = unknown>(name: string, args: SuperbeesScriptFunctionOptions<T>) {
-  return run("script", name, [args]);
-}
-
-export async function runScriptUtil<T = unknown>(name: string, args: [page: InjectedPage, options: SuperbeesScriptUtilFunctionOptions<T>]) {
-  return run("util", name, args);
-}
-
-export * from "@superbees/resources";
