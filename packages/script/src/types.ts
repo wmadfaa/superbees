@@ -1,7 +1,7 @@
 import SuperbeesBrowser from "@superbees/browser";
 import SuperbeesUncaptcha from "@superbees/uncaptcha";
 import SuperbeesProxy from "@superbees/proxy";
-import { runScriptUtil } from "./helpers";
+import { runScriptUtil } from "./run";
 
 interface SuperbeesScriptBaseOptions<T> {
   browser: SuperbeesBrowser;

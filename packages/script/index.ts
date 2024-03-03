@@ -7,7 +7,7 @@ export type PWwaitForOptions = Parameters<pw.Locator["waitFor"]>[0];
 export type PWwaitForURLUrl = Parameters<pw.Page["waitForURL"]>[0];
 export type PWwaitForURLOptions = Parameters<pw.Page["waitForURL"]>[1];
 
-class SuperbeesScript {
+export class SuperbeesScript {
   constructor(protected page: InjectedPage) {}
 
   public async unThrow<T, OF extends Primitive, OR extends Primitive>(promise: Promise<T>, msg: { onfulfilled?: OF; onrejected?: OR } = {}) {

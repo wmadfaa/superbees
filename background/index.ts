@@ -7,7 +7,9 @@ import * as actions from "./src/actions";
 import credentials from "../.credentials.json";
 
 (async () => {
-  const browser = new SuperbeesBrowser();
+  const browser = new SuperbeesBrowser({
+    chromium: { headless: false },
+  });
   const uncaptcha = new SuperbeesUncaptcha(credentials["captcha-solvers"]);
   const proxy = new SuperbeesProxy(credentials["proxy-services"]);
 

@@ -32,20 +32,20 @@ class StartCommand implements yargs.CommandModule<unknown, actions.HandleOnScrip
     const background_process = await pm3.find_process((p) => p.name === constants.BACKGROUND_PROCESS_NAME);
     if (!isNumber(background_process?.pm_id)) return console.error(`"${constants.BACKGROUND_PROCESS_NAME}" not found!`);
 
-    const response = await pm3.sendRequestToProcess(background_process.pm_id, {
-      type: "process:msg",
-      data: args,
-      topic: "script:run",
-    });
-
     try {
+      const response = await pm3.sendRequestToProcess(background_process.pm_id, {
+        type: "process:msg",
+        data: args,
+        topic: "script:run",
+      });
+
       for await (const message of response.createIterableResponseStream()) {
-        console.log(message);
+        console.log(message.data);
       }
     } catch (err) {
       console.error(err);
     }
-
+    console.log("xx");
     await pm3.disconnect();
   }
 }

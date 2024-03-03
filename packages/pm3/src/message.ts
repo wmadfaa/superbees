@@ -103,15 +103,15 @@ export function registerAction<I, O>(topic: string, handler: (data: I, process: 
       handler(packet.data, {
         send: (data, next = true) => {
           const payload: ResponseData<O> = { request: packet, data, next };
-          return process.send?.({ type: "process:msg", payload });
+          process.send?.({ type: "process:msg", payload });
         },
         complete: () => {
           const payload: ResponseData<O> = { request: packet, next: false };
-          return process.send?.({ type: "process:msg", payload });
+          process.send?.({ type: "process:msg", payload });
         },
         error: (error) => {
           const payload: ResponseData<O> = { request: packet, error, next: false };
-          return process.send?.({ type: "process:msg", payload });
+          process.send?.({ type: "process:msg", payload });
         },
       });
     }
