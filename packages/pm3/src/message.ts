@@ -1,27 +1,44 @@
-import pm2 from "pm2";
-import * as rx from "rxjs";
+import util from "util";
 
-export interface MessageData<T = unknown> {
+import * as rx from "rxjs";
+import { isEqual, assign } from "lodash";
+
+import pm2 from "pm2";
+
+export interface ResponseData<T = unknown, R = unknown> {
   data?: T;
   error?: string;
-  topic: string;
   next: boolean;
+  request: RequestPacket<R>;
 }
-export interface Message<T = unknown> {
+export interface Response<T = unknown, R = unknown> {
   process: {
     namespace: string;
     name: string;
     pm_id: number;
   };
-  raw: { payload: MessageData<T>; type: string };
+  raw: { payload: ResponseData<T, R>; type: string };
   at: number;
 }
-export function createMessageStream<T = unknown>(predicate: (value: Message<T>) => boolean) {
-  return new rx.Observable<MessageData<T>>((subscriber) => {
+
+interface RequestPacket<T> {
+  data: T;
+  type: string;
+  topic: string;
+}
+
+interface ActionProcess<T = unknown> {
+  send(data: T, next?: boolean): void;
+  complete(): void;
+  error(error: string): void;
+}
+
+export function createResponseStream<T = unknown, R = unknown>(predicate: (value: Response<T, R>) => boolean) {
+  return new rx.Observable<ResponseData<T, R>>((subscriber) => {
     pm2.launchBus((err, bus) => {
       if (err) return subscriber.error(err);
 
-      bus.on("process:msg", (packet: Message<T>) => {
+      bus.on("process:msg", (packet: Response<T, R>) => {
         if (predicate(packet)) {
           if (packet.raw.payload.error) subscriber.error(packet.raw.payload.error);
           else if (packet.raw.payload.data) {
@@ -34,11 +51,11 @@ export function createMessageStream<T = unknown>(predicate: (value: Message<T>) 
   });
 }
 
-export function createIterableMessageStream<T = unknown>(predicate: (value: Message<T>) => boolean): AsyncIterable<MessageData<T>> {
-  const stream = createMessageStream<T>(predicate);
+export function createIterableResponseStream<T = unknown, R = unknown>(predicate: (value: Response<T, R>) => boolean): AsyncIterable<ResponseData<T, R>> {
+  const stream = createResponseStream<T, R>(predicate);
 
-  async function* internalGenerator(): AsyncGenerator<MessageData<T>> {
-    const messages: MessageData<T>[] = [];
+  async function* internalGenerator(): AsyncGenerator<ResponseData<T, R>> {
+    const messages: ResponseData<T, R>[] = [];
     let resolve: (() => void) | null = null;
     const messagePromise = () => new Promise<void>((r) => (resolve = r));
 
@@ -80,34 +97,35 @@ export function createIterableMessageStream<T = unknown>(predicate: (value: Mess
   };
 }
 
-interface IncomingPacket<T> {
-  data: T;
-  topic: string;
-}
-
-interface ActionProcess<T = unknown> {
-  send(data: T, next?: boolean): void;
-  complete(): void;
-  error(error: string): void;
-}
-
 export function registerAction<I, O>(topic: string, handler: (data: I, process: ActionProcess<O>) => void) {
-  process.on("message", (packet: IncomingPacket<I>) => {
+  process.on("message", (packet: RequestPacket<I>) => {
     if (packet.topic === topic) {
       handler(packet.data, {
         send: (data, next = true) => {
-          const payload: MessageData<O> = { topic: packet.topic, data, next };
+          const payload: ResponseData<O> = { request: packet, data, next };
           return process.send?.({ type: "process:msg", payload });
         },
         complete: () => {
-          const payload: MessageData<O> = { topic: packet.topic, next: false };
+          const payload: ResponseData<O> = { request: packet, next: false };
           return process.send?.({ type: "process:msg", payload });
         },
         error: (error) => {
-          const payload: MessageData<O> = { topic: packet.topic, error, next: false };
+          const payload: ResponseData<O> = { request: packet, error, next: false };
           return process.send?.({ type: "process:msg", payload });
         },
       });
     }
   });
+}
+
+export async function sendRequestToProcess<RS = unknown, RQ = unknown>(proc_id: number, packet: RequestPacket<RQ>) {
+  const __rq_uuid = crypto.randomUUID();
+  packet = assign(packet, { __rq_uuid });
+  await util.promisify<number, object, void>(pm2.sendDataToProcessId).bind(pm2)(proc_id, packet);
+
+  return {
+    request: packet,
+    createResponseStream: () => createResponseStream<RS, RQ>((m) => isEqual(m.raw.payload.request, packet)),
+    createIterableResponseStream: () => createIterableResponseStream<RS, RQ>((m) => isEqual(m.raw.payload.request, packet)),
+  };
 }

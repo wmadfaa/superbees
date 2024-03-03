@@ -4,7 +4,7 @@ import * as pm3 from "@superbees/pm3";
   pm3.registerAction("cli:command", async (data, process) => {
     let i = 0;
     const interval = setInterval(() => {
-      if (i > 5) {
+      if (i > 10) {
         clearInterval(interval);
         process.complete();
       } else {

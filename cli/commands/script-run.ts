@@ -18,15 +18,15 @@ class StartCommand implements yargs.CommandModule {
       return;
     }
 
-    await pm3.sendDataToProcessId(background_process.pm_id, {
+    const response = await pm3.sendRequestToProcess(background_process.pm_id, {
       type: "process:msg",
       data: { some: "stuff" },
       topic: "cli:command",
     });
 
     try {
-      for await (const message of pm3.createIterableMessageStream((m) => m.raw.payload.topic === "cli:command")) {
-        console.log("Received message:", message);
+      for await (const message of response.createIterableResponseStream()) {
+        console.log("Received message:", message.data);
       }
       console.log("No more messages, stream ended.");
     } catch (err) {

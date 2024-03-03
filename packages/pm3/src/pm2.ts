@@ -15,9 +15,5 @@ export async function list() {
 }
 
 export async function start(options: pm2.StartOptions) {
-  return util.promisify<any, any>(pm2.start).bind(pm2)(options);
-}
-
-export async function sendDataToProcessId(proc_id: number, packet: object) {
-  return util.promisify(pm2.sendDataToProcessId).bind(pm2)(proc_id, packet);
+  return util.promisify<pm2.StartOptions>(pm2.start).bind(pm2)(options);
 }
