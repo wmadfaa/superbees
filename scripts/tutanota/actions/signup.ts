@@ -12,9 +12,10 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
   const page = await context.newPage();
 
   try {
-    await async.retry({ times: 5, interval: 200 }, async () => {
+    await async.retry({ times: 5, interval: 200 }, async (callback) => {
       const response = await page.goto("https://app.tuta.com");
-      if (response?.status() !== 200) throw new Error("failed to load page");
+      if (response?.status() !== 200) callback(new Error("failed to load page"));
+      callback(null, true);
     });
   } finally {
     await context.close();

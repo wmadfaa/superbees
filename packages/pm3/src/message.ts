@@ -102,16 +102,22 @@ export function registerAction<I, O>(topic: string, handler: (data: I, process: 
     if (packet.topic === topic) {
       handler(packet.data, {
         send: (data, next = true) => {
-          const payload: ResponseData<O> = { request: packet, data, next };
-          process.send?.({ type: "process:msg", payload });
+          setImmediate(() => {
+            const payload: ResponseData<O> = { request: packet, data, next };
+            process.send?.({ type: "process:msg", payload });
+          });
         },
         complete: () => {
-          const payload: ResponseData<O> = { request: packet, next: false };
-          process.send?.({ type: "process:msg", payload });
+          setImmediate(() => {
+            const payload: ResponseData<O> = { request: packet, next: false };
+            process.send?.({ type: "process:msg", payload });
+          });
         },
         error: (error) => {
-          const payload: ResponseData<O> = { request: packet, error, next: false };
-          process.send?.({ type: "process:msg", payload });
+          setImmediate(() => {
+            const payload: ResponseData<O> = { request: packet, error, next: false };
+            process.send?.({ type: "process:msg", payload });
+          });
         },
       });
     }

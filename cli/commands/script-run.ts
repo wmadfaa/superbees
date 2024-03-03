@@ -45,7 +45,7 @@ class StartCommand implements yargs.CommandModule<unknown, actions.HandleOnScrip
     } catch (err) {
       console.error(err);
     }
-    console.log("xx");
+
     await pm3.disconnect();
   }
 }
