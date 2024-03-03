@@ -5,7 +5,7 @@ import { TwoCaptchaError, TwoCaptchaTaskResultError } from "./2captcha-errors";
 import { pick } from "lodash";
 
 export interface I2CaptchaOptions {
-  server?: `https://api.2captcha.com`;
+  server: string;
   clientKey: string;
 }
 

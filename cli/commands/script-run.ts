@@ -1,36 +1,49 @@
 import type * as yargs from "yargs";
+import type * as actions from "@superbees/background/src/actions";
 
 import { isNumber } from "lodash";
-
 import * as pm3 from "@superbees/pm3";
 
 import * as constants from "../helpers/constants";
 
-class StartCommand implements yargs.CommandModule {
+class StartCommand implements yargs.CommandModule<unknown, actions.HandleOnScriptRunArgs> {
   public command = "script:run <name> [args]";
-  public describe = "run a script main function";
+  public describe = "run a farming script";
 
-  public async handler() {
+  public builder(yargs: yargs.Argv) {
+    return yargs
+      .positional("name", {
+        describe: "Name of the script folder in the scripts dir",
+        type: "string",
+        demandOption: true,
+      })
+      .option("vars", {
+        alias: ["v"],
+        describe: "Script vars will be passed with the options object in the script main function",
+        type: "string",
+        coerce: JSON.parse,
+        default: "{}",
+      })
+      .help() as yargs.Argv<actions.HandleOnScriptRunArgs>;
+  }
+
+  public async handler(args: actions.HandleOnScriptRunArgs) {
     await pm3.connect();
     const background_process = await pm3.find_process((p) => p.name === constants.BACKGROUND_PROCESS_NAME);
-    if (!isNumber(background_process?.pm_id)) {
-      console.error(`"${constants.BACKGROUND_PROCESS_NAME}" not found!`);
-      return;
-    }
+    if (!isNumber(background_process?.pm_id)) return console.error(`"${constants.BACKGROUND_PROCESS_NAME}" not found!`);
 
     const response = await pm3.sendRequestToProcess(background_process.pm_id, {
       type: "process:msg",
-      data: { some: "stuff" },
-      topic: "cli:command",
+      data: args,
+      topic: "script:run",
     });
 
     try {
       for await (const message of response.createIterableResponseStream()) {
-        console.log("Received message:", message.data);
+        console.log(message);
       }
-      console.log("No more messages, stream ended.");
     } catch (err) {
-      console.error("Error while processing messages:", err);
+      console.error(err);
     }
 
     await pm3.disconnect();

@@ -5,7 +5,7 @@ import { CapsolverError, CapsolverTaskResultError } from "./capsolver-errors";
 import { pick } from "lodash";
 
 export interface ICapsolverOptions {
-  server?: `https://api.capsolver.com` | `https://api-stable.capsolver.com`;
+  server: string;
   clientKey: string;
 }
 

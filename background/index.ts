@@ -1,18 +1,17 @@
-import * as pm3 from "@superbees/pm3";
+import SuperbeesBrowser from "@superbees/browser";
+import SuperbeesUncaptcha from "@superbees/uncaptcha";
+import SuperbeesProxy from "@superbees/proxy";
+
+import * as actions from "./src/actions";
+
+import credentials from "../.credentials.json";
 
 (async () => {
-  pm3.registerAction("cli:command", async (data, process) => {
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i > 10) {
-        clearInterval(interval);
-        process.complete();
-      } else {
-        process.send(`Hi ${i}`);
-        i += 1;
-      }
-    }, 1000);
-  });
+  const browser = new SuperbeesBrowser();
+  const uncaptcha = new SuperbeesUncaptcha(credentials["captcha-solvers"]);
+  const proxy = new SuperbeesProxy(credentials["proxy-services"]);
+
+  actions.handleOnScriptRun({ browser, uncaptcha, proxy });
 
   process.send?.(`ready`);
 })();

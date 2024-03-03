@@ -3,3 +3,5 @@ packages:
   - background
   - cli
   - resources
+  - scripts/*
+  - scripts/utils/*

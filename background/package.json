@@ -3,6 +3,10 @@
   "version": "0.0.0",
   "main": "index.ts",
   "dependencies": {
-    "@superbees/pm3": "workspace:*"
+    "@superbees/script": "workspace:*",
+    "@superbees/pm3": "workspace:*",
+    "@superbees/browser": "workspace:*",
+    "@superbees/proxy": "workspace:*",
+    "@superbees/uncaptcha": "workspace:*"
   }
 }
