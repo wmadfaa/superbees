@@ -3,6 +3,7 @@ import { authenticator } from "otplib";
 import { faker } from "@faker-js/faker";
 
 import * as script from "@superbees/script";
+import * as util from "util";
 async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
   const proxy = await opts.proxy.requestProxy("dataimpulse", { sticky: false });
   const context = await opts.browser.newContext("", {
@@ -21,6 +22,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
   } finally {
     // await context.close();
   }
+  await util.promisify(setTimeout)(10000);
 }
 
 export default signup;

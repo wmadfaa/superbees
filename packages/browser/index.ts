@@ -6,6 +6,7 @@ import { create, merge } from "lodash";
 
 import browsers, { SuperbeesBrowserType } from "./stealth";
 import { newInjectedContext, newInjectedPersistentContext } from "./fingerprint";
+import cacheHandler from "./cacheing";
 
 interface BaseSuperbeesContextOptions {
   driverType: SuperbeesBrowserType;
@@ -51,20 +52,13 @@ class SuperbeesBrowser {
 
   private makeRegisterCachingHandlerFunction(context: fp.InjectedContext) {
     return async (url: Parameters<fp.InjectedContext["route"]>[0]) => {
-      await context.route(url, (route, request) => {
-        console.log("request", request.url(), request.resourceType(), request.serviceWorker()?.url());
-        // route.fulfill();
-        route.continue();
-      });
-      context.on("response", (response) => {
-        console.log("response", response.url());
-      });
+      await context.route(url, cacheHandler);
     };
   }
 
   private makeUnregisterCachingHandlerFunction(context: fp.InjectedContext) {
     return async (url: Parameters<fp.InjectedContext["route"]>[0]) => {
-      await context.unroute(url);
+      await context.unroute(url, cacheHandler);
     };
   }
 
