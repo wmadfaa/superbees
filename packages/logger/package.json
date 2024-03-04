@@ -1,0 +1,9 @@
+{
+  "name": "@superbees/logger",
+  "version": "0.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "pino": "^8.19.0",
+    "pino-pretty": "^10.3.1"
+  }
+}

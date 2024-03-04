@@ -1,6 +1,7 @@
-import SuperbeesBrowser from "@superbees/browser";
-import SuperbeesUncaptcha from "@superbees/uncaptcha";
-import SuperbeesProxy from "@superbees/proxy";
+import type { Logger } from "@superbees/logger";
+import type SuperbeesBrowser from "@superbees/browser";
+import type SuperbeesUncaptcha from "@superbees/uncaptcha";
+import type SuperbeesProxy from "@superbees/proxy";
 import { runScriptUtil } from "./run";
 
 interface SuperbeesScriptBaseOptions<T> {
@@ -8,6 +9,7 @@ interface SuperbeesScriptBaseOptions<T> {
   uncaptcha: SuperbeesUncaptcha;
   proxy: SuperbeesProxy;
   util: typeof runScriptUtil;
+  logger: Logger;
 
   vars?: T;
 }

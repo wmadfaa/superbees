@@ -39,21 +39,29 @@ async function cacheHandler(route: pw.Route, request: pw.Request) {
       body: await fs.promises.readFile(filePath),
     });
   } else {
-    const response = await route.fetch();
-    const request_has_security_headers = !isEqual(await request.allHeaders(), request.headers());
-    const mimeType = response.headers()["content-type"];
-    if (!response.ok() || request_has_security_headers || !mimeType) return route.continue();
+    try {
+      const response = await route.fetch();
+      const request_has_security_headers = !isEqual(await request.allHeaders(), request.headers());
+      const mimeType = response.headers()["content-type"];
+      if (!response.ok() || request_has_security_headers || !mimeType) return route.continue();
 
-    const headers = JSON.stringify(response.headers());
-    const body = await response.body();
+      const headers = JSON.stringify(response.headers());
+      const body = await response.body();
 
-    await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.promises.writeFile(filePath, body);
+      await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.promises.writeFile(filePath, body);
 
-    const db = MetadataDB.init_or_get(path.join(dirPath, "superbees_cache_metadata.db"));
-    db.upset_metadata({ url: filePath, mimeType, headers });
+      const db = MetadataDB.init_or_get(path.join(dirPath, "superbees_cache_metadata.db"));
+      db.upset_metadata({ url: filePath, mimeType, headers });
 
-    return route.fulfill({ response, body });
+      return route.fulfill({ response, body });
+    } catch (e) {
+      if ((e as Error).message.startsWith(`route.fetch:`)) {
+        return route.continue();
+      } else {
+        throw e;
+      }
+    }
   }
 }
 
