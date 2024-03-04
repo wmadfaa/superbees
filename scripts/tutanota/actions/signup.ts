@@ -9,6 +9,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     driverType: "chromium",
     browserContextOptions: { permissions: ["clipboard-read", "clipboard-write"], proxy: { server: proxy.server } },
   });
+  await context.registerCachingHandler(/^http(s?):\/\/app\.tuta\.com\/(?!rest).*/);
   const page = await context.newPage();
 
   try {
@@ -18,7 +19,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
       callback(null, true);
     });
   } finally {
-    await context.close();
+    // await context.close();
   }
 }
 

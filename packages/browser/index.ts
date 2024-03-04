@@ -17,6 +17,8 @@ export interface SuperbeesPersistentContextOptions extends fp.NewInjectedPersist
 
 export type SuperbeesContext = fp.InjectedContext & {
   close(entityId?: string, options?: { reason?: string }): Promise<void>;
+  registerCachingHandler(url: Parameters<fp.InjectedContext["route"]>[0]): Promise<void>;
+  unregisterCachingHandler(url: Parameters<fp.InjectedContext["route"]>[0]): Promise<void>;
 };
 
 class SuperbeesBrowser {
@@ -31,7 +33,8 @@ class SuperbeesBrowser {
     const browser = this.browsers.get(type);
 
     if (browser) return browser;
-    return this.browsers.set(type, await browsers[type].launch(merge(this.browserLaunchOptions[type], { env: { PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS: "1" } }))).get(type)!;
+    process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS = "1";
+    return this.browsers.set(type, await browsers[type].launch(this.browserLaunchOptions[type])).get(type)!;
   }
 
   private makeContextClose(context: fp.InjectedContext, defaultEntityId: string) {
@@ -46,21 +49,21 @@ class SuperbeesBrowser {
     };
   }
 
-  private makeRegisterCachingHandlerFunction(context: SuperbeesContext) {
-    return async (url: Parameters<SuperbeesContext["route"]>[0]) => {
+  private makeRegisterCachingHandlerFunction(context: fp.InjectedContext) {
+    return async (url: Parameters<fp.InjectedContext["route"]>[0]) => {
       await context.route(url, (route, request) => {
-        console.log(request.resourceType());
-        route.fulfill();
+        console.log("request", request.url(), request.resourceType(), request.serviceWorker()?.url());
+        // route.fulfill();
         route.continue();
       });
       context.on("response", (response) => {
-        console.log(response.url());
+        console.log("response", response.url());
       });
     };
   }
 
-  private makeUnregisterCachingHandlerFunction(context: SuperbeesContext) {
-    return async (url: Parameters<SuperbeesContext["route"]>[0]) => {
+  private makeUnregisterCachingHandlerFunction(context: fp.InjectedContext) {
+    return async (url: Parameters<fp.InjectedContext["route"]>[0]) => {
       await context.unroute(url);
     };
   }
