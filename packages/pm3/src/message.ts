@@ -1,9 +1,10 @@
 import util from "util";
 
 import * as rx from "rxjs";
-import { isEqual, assign } from "lodash";
+import { isEqual, assign, extend, omit } from "lodash";
 
 import pm2 from "pm2";
+import logger, { Logger } from "@superbees/logger";
 
 export interface ResponseData<T = unknown, R = unknown> {
   data?: T;
@@ -97,10 +98,10 @@ export function createIterableResponseStream<T = unknown, R = unknown>(predicate
   };
 }
 
-export function registerAction<I, O>(topic: string, handler: (data: I, process: ActionProcess<O>) => void) {
+export function registerAction<I extends object, O>(topic: string, handler: (data: I, process: ActionProcess<O>, logger: Logger & { start(): void; complete(): void }) => void) {
   process.on("message", (packet: RequestPacket<I>) => {
     if (packet.topic === topic) {
-      handler(packet.data, {
+      const actionProcess: ActionProcess<any> = {
         send: (data, next = true) => {
           setImmediate(() => {
             const payload: ResponseData<O> = { request: packet, data, next };
@@ -119,7 +120,31 @@ export function registerAction<I, O>(topic: string, handler: (data: I, process: 
             process.send?.({ type: "process:msg", payload });
           });
         },
+      };
+      const childLogger = logger.child({ tag: topic, ...omit(packet.data, "_", "v", "$0") });
+      const mixedLogger = extend({}, childLogger, {
+        start: () => {
+          childLogger.info(`starting`);
+          actionProcess.send(`starting`, true);
+        },
+        info: (msg: string, ...args: any[]) => {
+          childLogger.info(msg, args);
+          actionProcess.send(msg);
+        },
+        warn: (msg: string, ...args: any[]) => {
+          childLogger.warn(msg, args);
+          actionProcess.send(msg);
+        },
+        error: (msg: string, ...args: any[]) => {
+          childLogger.error(msg, args);
+          actionProcess.error(msg);
+        },
+        complete: () => {
+          childLogger.info(`completed`);
+          actionProcess.send(`completed`, false);
+        },
       });
+      handler(packet.data, actionProcess, mixedLogger);
     }
   });
 }
