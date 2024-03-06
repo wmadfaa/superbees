@@ -1,3 +1,4 @@
+import type { PrismaClient } from "@prisma/client";
 import type { Logger } from "@superbees/logger";
 import type SuperbeesBrowser from "@superbees/browser";
 import type SuperbeesUncaptcha from "@superbees/uncaptcha";
@@ -10,6 +11,7 @@ interface SuperbeesScriptBaseOptions<T> {
   proxy: SuperbeesProxy;
   util: typeof runScriptUtil;
   logger: Logger;
+  prisma: PrismaClient;
 
   vars?: T;
 }

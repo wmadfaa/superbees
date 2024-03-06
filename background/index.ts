@@ -1,10 +1,13 @@
+import { PrismaClient } from "@prisma/client";
+
 import SuperbeesBrowser from "@superbees/browser";
 import SuperbeesUncaptcha from "@superbees/uncaptcha";
 import SuperbeesProxy from "@superbees/proxy";
 
 import * as actions from "./src/actions";
-
 import credentials from "../.credentials.json";
+
+const prisma = new PrismaClient();
 
 (async () => {
   const browser = new SuperbeesBrowser({
@@ -13,7 +16,7 @@ import credentials from "../.credentials.json";
   const uncaptcha = new SuperbeesUncaptcha(credentials["captcha-solvers"]);
   const proxy = new SuperbeesProxy(credentials["proxy-services"]);
 
-  actions.handleOnScriptRun({ browser, uncaptcha, proxy });
+  actions.handleOnScriptRun({ browser, uncaptcha, proxy, prisma });
 
   process.send?.(`ready`);
 })();

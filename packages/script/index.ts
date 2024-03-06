@@ -72,8 +72,8 @@ export class SuperbeesScript {
     pg = this.page,
   ) {
     return Promise.race(
-      locators.map(([l, o]) =>
-        this.waitFor(l, o, pg).then(
+      locators.map(([l, o], i, a) =>
+        this.waitFor(l, merge({ timeout: (o.timeout ?? 3000) + (a.length - i) * 10 }, o), pg).then(
           () => o.onfulfilled,
           () => o.onrejected,
         ),
@@ -86,8 +86,8 @@ export class SuperbeesScript {
     pg = this.page,
   ) {
     return Promise.race(
-      urls.map(([u, o]) =>
-        pg.waitForURL(u, o).then(
+      urls.map(([u, o], i, a) =>
+        pg.waitForURL(u, merge({ timeout: (o.timeout ?? 3000) + (a.length - i) * 10 }, o)).then(
           () => o.onfulfilled,
           () => o.onrejected,
         ),
@@ -102,15 +102,15 @@ export class SuperbeesScript {
   ) {
     return Promise.race(
       locators
-        .map(([l, o]) =>
-          this.waitFor(l, o, pg).then(
+        .map(([l, o], i, a) =>
+          this.waitFor(l, merge({ timeout: (o.timeout ?? 3000) + (a.length - i) * 10 }, o), pg).then(
             () => o.onfulfilled,
             () => o.onrejected,
           ),
         )
         .concat(
-          urls.map(([u, o]) =>
-            pg.waitForURL(u, o).then(
+          urls.map(([u, o], i, a) =>
+            pg.waitForURL(u, merge({ timeout: (o.timeout ?? 3000) + (a.length - i) * 10 }, o)).then(
               () => o.onfulfilled,
               () => o.onrejected,
             ),
@@ -121,7 +121,7 @@ export class SuperbeesScript {
 
   public async trackLocatorStateUntil<OF extends Primitive, OR extends Primitive>(
     locator: pw.Locator | string,
-    { retry = { times: 1000, interval: 100 }, timeout = 100, state, escape_sticky_state_after = 10, extra_locators = [] }: TrackLocatorSateUntilOptions<OF, OR>,
+    { retry = { times: 100, interval: 1000 }, timeout = 100, state, escape_sticky_state_after = 10, extra_locators = [] }: TrackLocatorSateUntilOptions<OF, OR>,
     pg = this.page,
   ) {
     locator = this.locator(locator, pg);
@@ -130,10 +130,10 @@ export class SuperbeesScript {
     return await async.retry<OF | PWLocatorState | OR | "unknown">(retry, async (callback) => {
       const last_captured_state = await this.raceUntilLocator<OF | PWLocatorState, OR | "unknown">(
         [
-          ...(extra_locators?.map(([l, o], i, arr) => [l, merge(o, { timeout: timeout + (arr.length + 4) * 10 - i * 10 })]) as typeof extra_locators),
-          [locator, { onfulfilled: "visible", onrejected: "unknown", state: "visible", timeout: timeout + 30 }],
-          [locator, { onfulfilled: "attached", onrejected: "unknown", state: "attached", timeout: timeout + 20 }],
-          [locator, { onfulfilled: "hidden", onrejected: "unknown", state: "hidden", timeout: timeout + 10 }],
+          ...extra_locators,
+          [locator, { onfulfilled: "visible", onrejected: "unknown", state: "visible", timeout }],
+          [locator, { onfulfilled: "attached", onrejected: "unknown", state: "attached", timeout }],
+          [locator, { onfulfilled: "hidden", onrejected: "unknown", state: "hidden", timeout }],
           [locator, { onfulfilled: "detached", onrejected: "unknown", state: "detached", timeout }],
         ],
         pg,

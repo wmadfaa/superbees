@@ -1,11 +1,11 @@
 import * as async from "async";
 import { faker } from "@faker-js/faker";
+import { EmailPlatform, EmailStatus } from "@prisma/client";
 
 import * as script from "@superbees/script";
 import { utils } from "@superbees/script";
 
 import Tutanota from "../../utils/tutanota/src/tutanota";
-import { EmailStatus } from "@prisma/client";
 
 async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
   const proxy = await opts.proxy.requestProxy("dataimpulse", { sticky: true });
@@ -24,6 +24,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     password: faker.internet.password({ length: faker.number.int({ min: 12, max: 23 }) }),
     recoveryCode: "",
     status: EmailStatus.UNKNOWN as EmailStatus,
+    entityId: undefined as string | undefined,
   };
 
   try {
@@ -116,7 +117,6 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     if (state === "captcha") {
       opts.logger.info(`solve captcha`);
       await $.solve_captcha();
-      await $.waitUntilStable();
     }
 
     opts.logger.info(`copy the recovery-code`);
@@ -125,14 +125,36 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     await $.waitAndClick(`//button[@title="Ok"]`);
     await $.waitUntilStable();
 
-    opts.logger.info(`login to verify account status`);
-    storeDB.status = (await $.login({ username: `${storeDB.username}${storeDB.domain}`, password: storeDB.password, metadata: null }))!;
-
+    opts.logger.info(`verify email status`);
+    storeDB.status = await $.login({ username: `${storeDB.username}${storeDB.domain}`, password: storeDB.password, metadata: null });
     if (!/VERIFIED|PENDING/.test(storeDB.status)) throw `completed with status: ${storeDB.status}`;
+    opts.logger.info(`verified status: ${storeDB.status}`);
+    await $.waitUntilStable();
+
+    const $entity = await opts.prisma.entity.create({
+      data: {
+        firstname: entity.firstname,
+        lastname: entity.lastname,
+        birthdate: entity.birthdate,
+        gender: entity.gender,
+        country: entity.country,
+        email: {
+          create: {
+            platform: EmailPlatform.TUTANOTA,
+            username: `${storeDB.username}${storeDB.domain}`,
+            password: storeDB.password,
+            status: storeDB.status,
+            metadata: { recoveryCode: storeDB.recoveryCode },
+          },
+        },
+      },
+    } as any);
+
+    storeDB.entityId = $entity.id;
   } finally {
-    await context.close();
+    await context.close(storeDB.entityId);
     await opts.proxy.releaseProxy("dataimpulse", proxy);
   }
 }
-// dialog-title , Time (hh:mm)
+
 export default signup;

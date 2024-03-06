@@ -12,7 +12,7 @@ async function main(opts: script.SuperbeesScriptFunctionOptions<IOptions>) {
       return signup(opts);
     }
     default: {
-      throw new Error(`unrecognized Tutanota action: ${action}`);
+      throw `unrecognized Tutanota action: ${action}`;
     }
   }
 }
