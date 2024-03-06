@@ -40,7 +40,7 @@ class StartCommand implements yargs.CommandModule<unknown, actions.HandleOnScrip
       });
 
       for await (const message of response.createIterableResponseStream()) {
-        console.log(message.data);
+        if ("data" in message) console.log(message.data);
       }
     } catch (err) {
       console.error(err);

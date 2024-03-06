@@ -136,8 +136,8 @@ export function registerAction<I extends object, O>(topic: string, handler: (dat
           actionProcess.send(msg);
         },
         error: (msg: string, ...args: any[]) => {
-          childLogger.error(msg, args);
-          actionProcess.error(msg);
+          childLogger.error(`${new Error(msg).message}`, args);
+          actionProcess.error(`${new Error(msg).message}`);
         },
         complete: () => {
           childLogger.info(`completed`);

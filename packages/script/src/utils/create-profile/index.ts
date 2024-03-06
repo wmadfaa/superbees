@@ -39,5 +39,5 @@ export async function createProfile(options?: Partial<IOptions>) {
   const country = countries[Math.floor(Math.random() * countries.length)];
   const birthdate = faker.date.birthdate(options?.birthdate);
 
-  return { entity: { firstname: firstName, lastname: lastName, birthdate, gender, country } };
+  return { firstname: firstName, lastname: lastName, birthdate, gender, country };
 }

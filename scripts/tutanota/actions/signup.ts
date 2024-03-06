@@ -1,28 +1,135 @@
 import * as async from "async";
-import { authenticator } from "otplib";
 import { faker } from "@faker-js/faker";
 
 import * as script from "@superbees/script";
+import { utils } from "@superbees/script";
+
+import Tutanota from "../../utils/tutanota/src/tutanota";
+import { EmailStatus } from "@prisma/client";
 
 async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
-  const proxy = await opts.proxy.requestProxy("dataimpulse", { sticky: false });
+  const proxy = await opts.proxy.requestProxy("dataimpulse", { sticky: true });
   const context = await opts.browser.newContext("", {
     driverType: "chromium",
     browserContextOptions: { permissions: ["clipboard-read", "clipboard-write"], proxy: { server: proxy.server } },
   });
   await context.registerCachingHandler(/^http(s?):\/\/app\.tuta\.com\/(?!rest).*/);
   const page = await context.newPage();
+  const $: Tutanota = await opts.util("tutanota", [page, opts]);
+
+  const entity = await utils.profile.createProfile();
+  const storeDB = {
+    domain: "@tutamail.com",
+    username: faker.internet.displayName({ firstName: entity.firstname, lastName: entity.lastname }).toLowerCase(),
+    password: faker.internet.password({ length: faker.number.int({ min: 12, max: 23 }) }),
+    recoveryCode: "",
+    status: EmailStatus.UNKNOWN as EmailStatus,
+  };
 
   try {
-    opts.logger.info(`Navigating to "https://app.tuta.com"`);
-    await async.retry({ times: 5, interval: 200 }, async (callback) => {
-      const response = await page.goto("https://app.tuta.com", { waitUntil: "networkidle" });
-      if (response?.status() !== 200) callback(new Error("failed to load page"));
-      callback(null, true);
+    await $.go_to_root_if_needed();
+
+    opts.logger.info(`select free plan`);
+    await $.waitAndClick(`//button[@title="Sign up"]`);
+    await $.trackLocatorStateUntil(`//p[@id='dialog-title' and .//text()="Loading ..."]`, { state: ["hidden"] });
+
+    await $.waitAndClick(`(//button[@title="Select"])[1]`);
+
+    opts.logger.info(`agree to not create multiple accounts`);
+    await $.waitAndClick(`//label[text()="I do not own any other Free account."]/input`);
+    await $.waitAndClick(`//label[text()="I will not use this account for business."]/input`);
+    await $.waitAndClick(`//button[@title="Ok"]`);
+    await $.waitUntilStable();
+
+    opts.logger.info(`select account domain`);
+    await $.waitAndClick(`//button[@title="Domain"]`);
+    await $.waitFor(`//div[@role="menu"]`);
+    const count = await page.locator(`//button[@role="menuitem" and not(descendant::*[local-name() = 'svg'])]`).count();
+    await $.waitAndClick(`//button[@role="menuitem" and not(descendant::*[local-name() = 'svg'])][${faker.number.int({ min: 1, max: count })}]`);
+    await utils.sleep(100);
+    const domain = await page.locator(`//button[@title='Domain' and @aria-label='Domain']/preceding-sibling::div[1]`).textContent();
+    if (!domain) throw `couldn't get the selected account domain`;
+    storeDB.domain = domain;
+
+    opts.logger.info(`enter a unique username`);
+    await async.retry({ times: 1000, interval: 100 }, async (callback) => {
+      const s = await $.raceUntilLocator([
+        [`//small[./*[text()="Enter preferred email address"]]`, { onfulfilled: "empty", onrejected: "unknown", timeout: 100 }],
+        [`//small[./*[text()="Verifying email address ..."]]`, { onfulfilled: "verifying", onrejected: "unknown", timeout: 100 }],
+        [`//small[./*[text()="Email address is available."]]`, { onfulfilled: "available", onrejected: "unknown", timeout: 100 }],
+        [`//small[./*[text()="Email address is not available."]]`, { onfulfilled: "unavailable", onrejected: "unknown", timeout: 100 }],
+      ]);
+      if (s === "available") return callback(null);
+      if (/unavailable|empty/.test(s!)) {
+        if (s === "unavailable") storeDB.username = faker.internet.displayName({ firstName: entity.firstname, lastName: entity.lastname }).toLowerCase();
+        await $.waitAndFill(`//div[@id="signup-account-dialog"]//input[@aria-label="Email address"]`, storeDB.username);
+      }
+      callback(new Error(`username input status: [${s}]`));
     });
+
+    opts.logger.info(`enter a strong password`);
+    await async.retry({ times: 1000, interval: 100 }, async (callback) => {
+      const s = await $.raceUntilLocator([
+        [`//small[.//*[text()="Please enter a new password."]]`, { onfulfilled: "empty", onrejected: "unknown", timeout: 100 }],
+        [`//small[.//*[text()="Password ok."]]`, { onfulfilled: "ok", onrejected: "unknown", timeout: 100 }],
+        [`//small[.//*[text()="Password is not secure enough."]]`, { onfulfilled: "unsecure", onrejected: "unknown", timeout: 100 }],
+      ]);
+      if (s === "ok") return callback(null);
+      if (/unsecure|empty/.test(s!)) {
+        if (s === "unsecure") storeDB.password = faker.internet.password({ length: faker.number.int({ min: 12, max: 23 }) });
+        await $.waitAndFill(`//div[@id="signup-account-dialog"]//input[@aria-label="Set password"]`, storeDB.password);
+      }
+      return callback(new Error(`password input status: [${s}]`));
+    });
+
+    await async.retry({ times: 1000, interval: 100 }, async (callback) => {
+      const s = await $.raceUntilLocator([
+        [`//small[./*[text()="Please confirm your password."]]`, { onfulfilled: "empty", onrejected: "unknown", timeout: 100 }],
+        [`//small[./*[text()="Password ok."]]`, { onfulfilled: "ok", onrejected: "unknown", timeout: 100 }],
+        [`//small[./*[text()="Confirmed password is different."]]`, { onfulfilled: "different", onrejected: "unknown", timeout: 100 }],
+      ]);
+      if (s === "ok") return callback(null);
+      if (/different|empty/.test(s!)) {
+        await $.waitAndFill(`//div[@id="signup-account-dialog"]//input[@aria-label="Repeat password"]`, storeDB.password);
+      }
+      return callback(new Error(`password input status: [${s}]`));
+    });
+
+    opts.logger.info(`agree to tutanota terms-and-conditions`);
+    await $.waitAndClick(`//label[contains(text(),"I have read and agree to the following documents:")]/input`);
+    await $.waitAndClick(`//label[text()="I am at least 16 years old."]/input`);
+
+    await $.waitAndClick(`//button[@title="Next"]`);
+
+    opts.logger.info(`waiting for account to be prepared`);
+    const state = await $.trackLocatorStateUntil(`//p[@id='dialog-title' and .//text()="Preparing account ..."]`, {
+      state: ["detached", "blocked", "signup-completed", "captcha"],
+      extra_locators: [
+        [`//div[@id="dialog-title" and .//*[contains(text(),"Registration is temporarily blocked")]]`, { onfulfilled: "blocked", onrejected: "unknown" }],
+        [`//div[@id="dialog-title" and .//*[text()="Congratulations"]]`, { onfulfilled: "signup-completed", onrejected: "unknown" }],
+        [`//div[@id="dialog-title" and .//*[text()="Captcha"]]`, { onfulfilled: "captcha", onrejected: "unknown" }],
+      ],
+    });
+    if (/detached|blocked/.test(state!)) throw `Registration is temporarily blocked`;
+    await $.waitUntilStable();
+
+    if (state === "captcha") {
+    }
+
+    opts.logger.info(`copy the recovery-code`);
+    await $.waitAndClick(`//button[@title="Copy"]`);
+    storeDB.recoveryCode = await page.evaluate<string>("navigator.clipboard.readText()");
+    await $.waitAndClick(`//button[@title="Ok"]`);
+    await $.waitUntilStable();
+
+    opts.logger.info(`login to verify account status`);
+    storeDB.status = (await $.login({ username: `${storeDB.username}${storeDB.domain}`, password: storeDB.password, metadata: null }))!;
+
+    if (!/VERIFIED|PENDING/.test(storeDB.status)) throw `completed with status: ${storeDB.status}`;
   } finally {
     await context.close();
+    await opts.proxy.releaseProxy("dataimpulse", proxy);
   }
 }
-
+// dialog-title , Time (hh:mm)
 export default signup;
