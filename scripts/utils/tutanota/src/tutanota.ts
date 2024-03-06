@@ -6,6 +6,7 @@ import { Email, EmailStatus } from "@prisma/client";
 
 import * as script from "@superbees/script";
 import { Primitive, PWwaitForOptions, PWwaitForURLOptions, PWwaitForURLUrl } from "@superbees/script";
+import captchaSolver from "./captcha-solver";
 
 class Tutanota extends script.SuperbeesScript {
   constructor(
@@ -65,6 +66,27 @@ class Tutanota extends script.SuperbeesScript {
     return this.race_with_email_state();
   }
 
+  async solve_captcha() {
+    await async.retry({ times: 3, interval: 200 }, async (callback) => {
+      const image_locator = await this.waitFor(`//img[@alt="Captcha"]`);
+      const image_url = await image_locator.getAttribute("src");
+      if (!image_url) return callback(new Error(`tutanota-captcha src is missing`));
+      const image_buffer = Buffer.from(image_url.replace(/^data:image\/\w+;base64,/, ""), "base64");
+      const prediction = await captchaSolver(image_buffer);
+      await this.waitAndFill(`//input[@aria-label="Time (hh:mm)"]`, prediction);
+      await this.waitAndClick(`//button[@title="Ok"]`);
+      await this.waitUntilStable();
+
+      const state = await this.raceUntilLocator([
+        [`//div[@id="dialog-title" and .//*[contains(text(),"Unfortunately, the answer is wrong")]]`, { onfulfilled: "wrong-captcha-prediction", onrejected: "unknown" }],
+        [`//div[@id="dialog-title" and .//*[contains(text(),"Registration is temporarily blocked")]]`, { onfulfilled: "blocked", onrejected: "unknown" }],
+        [`//div[@id="dialog-title" and .//*[text()="Congratulations"]]`, { onfulfilled: "congratulations", onrejected: "unknown" }],
+      ]);
+
+      if (state === "congratulations") return callback(null);
+      return callback(new Error(`resolved with the state: [ ${state} ]`));
+    });
+  }
   /* private methods */
   private async race_with_email_state<OF extends Primitive = undefined, OR extends Primitive = undefined>(
     locators: [locator: pw.Locator | string, options: PWwaitForOptions & { onfulfilled: OF; onrejected?: OR }][] = [],

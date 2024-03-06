@@ -101,12 +101,12 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
 
     await $.waitAndClick(`//button[@title="Next"]`);
 
-    opts.logger.info(`waiting for account to be prepared`);
+    opts.logger.info(`wait for account to be prepared`);
     const state = await $.trackLocatorStateUntil(`//p[@id='dialog-title' and .//text()="Preparing account ..."]`, {
-      state: ["detached", "blocked", "signup-completed", "captcha"],
+      state: ["detached", "blocked", "congratulations", "captcha"],
       extra_locators: [
         [`//div[@id="dialog-title" and .//*[contains(text(),"Registration is temporarily blocked")]]`, { onfulfilled: "blocked", onrejected: "unknown" }],
-        [`//div[@id="dialog-title" and .//*[text()="Congratulations"]]`, { onfulfilled: "signup-completed", onrejected: "unknown" }],
+        [`//div[@id="dialog-title" and .//*[text()="Congratulations"]]`, { onfulfilled: "congratulations", onrejected: "unknown" }],
         [`//div[@id="dialog-title" and .//*[text()="Captcha"]]`, { onfulfilled: "captcha", onrejected: "unknown" }],
       ],
     });
@@ -114,6 +114,9 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     await $.waitUntilStable();
 
     if (state === "captcha") {
+      opts.logger.info(`solve captcha`);
+      await $.solve_captcha();
+      await $.waitUntilStable();
     }
 
     opts.logger.info(`copy the recovery-code`);

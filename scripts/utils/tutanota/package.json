@@ -3,6 +3,8 @@
   "version": "0.0.0",
   "main": "index.ts",
   "dependencies": {
-    "@superbees/script": "workspace:*"
+    "@superbees/script": "workspace:*",
+    "@tensorflow/tfjs-node": "^4.17.0",
+    "jimp": "^0.22.12"
   }
 }
