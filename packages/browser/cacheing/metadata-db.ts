@@ -29,7 +29,7 @@ class MetadataDB {
 
   get_metadata(url: string) {
     const stmt = this.db.prepare(`SELECT * FROM metadata WHERE url = ?`);
-    return stmt.get(url) as MetadataRowData;
+    return stmt.get(url) as MetadataRowData | null;
   }
 }
 

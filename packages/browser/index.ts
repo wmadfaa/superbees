@@ -6,7 +6,7 @@ import { create, merge } from "lodash";
 
 import browsers, { SuperbeesBrowserType } from "./stealth";
 import { newInjectedContext, newInjectedPersistentContext } from "./fingerprint";
-import cacheHandler from "./cacheing";
+import BrowserCache from "./cacheing";
 
 interface BaseSuperbeesContextOptions {
   driverType: SuperbeesBrowserType;
@@ -18,8 +18,7 @@ export interface SuperbeesPersistentContextOptions extends fp.NewInjectedPersist
 
 export type SuperbeesContext = fp.InjectedContext & {
   close(entityId?: string, options?: { reason?: string }): Promise<void>;
-  registerCachingHandler(url: Parameters<fp.InjectedContext["route"]>[0]): Promise<void>;
-  unregisterCachingHandler(url: Parameters<fp.InjectedContext["route"]>[0]): Promise<void>;
+  cache: BrowserCache;
 };
 
 class SuperbeesBrowser {
@@ -50,18 +49,6 @@ class SuperbeesBrowser {
     };
   }
 
-  private makeRegisterCachingHandlerFunction(context: fp.InjectedContext) {
-    return async (url: Parameters<fp.InjectedContext["route"]>[0]) => {
-      await context.route(url, cacheHandler);
-    };
-  }
-
-  private makeUnregisterCachingHandlerFunction(context: fp.InjectedContext) {
-    return async (url: Parameters<fp.InjectedContext["route"]>[0]) => {
-      await context.unroute(url, cacheHandler);
-    };
-  }
-
   private async fetchEntityBrowser<T extends {}>(entityId: string, { ...options }: T) {
     let entity_browser: Prisma.JsonObject | undefined;
     if (entityId) {
@@ -80,9 +67,9 @@ class SuperbeesBrowser {
 
     const context = await newInjectedContext(await this.launch(driverType), options);
     const close = this.makeContextClose(context, entityId);
-    const registerCachingHandler = this.makeRegisterCachingHandlerFunction(context);
-    const unregisterCachingHandler = this.makeUnregisterCachingHandlerFunction(context);
-    return create(context, { close, registerCachingHandler, unregisterCachingHandler });
+    const cache = new BrowserCache(context);
+
+    return create(context, { close, cache });
   }
 
   async newPersistentContext(entityId: string, { driverType, ...options }: SuperbeesPersistentContextOptions): Promise<SuperbeesContext> {
@@ -91,9 +78,9 @@ class SuperbeesBrowser {
 
     const context = await newInjectedPersistentContext(browsers[driverType], options);
     const close = this.makeContextClose(context, entityId);
-    const registerCachingHandler = this.makeRegisterCachingHandlerFunction(context);
-    const unregisterCachingHandler = this.makeUnregisterCachingHandlerFunction(context);
-    return create(context, { close, registerCachingHandler, unregisterCachingHandler });
+    const cache = new BrowserCache(context);
+
+    return create(context, { close, cache });
   }
 
   async close(type?: SuperbeesBrowserType) {

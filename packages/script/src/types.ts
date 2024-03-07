@@ -6,6 +6,8 @@ import type SuperbeesProxy from "@superbees/proxy";
 import { runScriptUtil } from "./run";
 
 interface SuperbeesScriptBaseOptions<T> {
+  entityId?: string;
+
   browser: SuperbeesBrowser;
   uncaptcha: SuperbeesUncaptcha;
   proxy: SuperbeesProxy;

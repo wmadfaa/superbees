@@ -13,7 +13,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     driverType: "chromium",
     browserContextOptions: { permissions: ["clipboard-read", "clipboard-write"], proxy: { server: proxy.server } },
   });
-  await context.registerCachingHandler(/^http(s?):\/\/app\.tuta\.com\/(?!rest).*/);
+  await context.cache.attachCacheHandlers(/^http(s?):\/\/app\.tuta\.com\/(?!rest).*/);
   const page = await context.newPage();
   const $: Tutanota = await opts.util("tutanota", [page, opts]);
 
@@ -129,7 +129,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     storeDB.status = await $.login({ username: `${storeDB.username}${storeDB.domain}`, password: storeDB.password, metadata: null });
     if (!/VERIFIED|PENDING/.test(storeDB.status)) throw `completed with status: ${storeDB.status}`;
     opts.logger.info(`verified status: ${storeDB.status}`);
-    await $.waitUntilStable();
+    await $.waitUntilStable(10000);
 
     const $entity = await opts.prisma.entity.create({
       data: {
