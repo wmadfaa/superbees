@@ -4,6 +4,14 @@ import { Email, EmailStatus } from "@prisma/client";
 import * as script from "@superbees/script";
 import captchaSolver from "./captcha-solver";
 
+export interface TutanotaEmailData {
+  sentAt: Date;
+  subject: string;
+  sender_name: string;
+  sender_email_address: string;
+  body: string;
+}
+
 class Tutanota extends script.SuperbeesScript {
   constructor(
     protected readonly page: script.InjectedPage,
@@ -21,7 +29,9 @@ class Tutanota extends script.SuperbeesScript {
         callback(null);
       });
       await this.waitUntilStable();
+      return true;
     }
+    return false;
   }
 
   async login(email: Pick<Email, "username" | "password" | "metadata">) {
@@ -79,6 +89,87 @@ class Tutanota extends script.SuperbeesScript {
     });
 
     if (state !== "congratulations") throw `resolved with the state: [ ${state} ]`;
+  }
+
+  async get_expected_email(
+    filter: (data: Partial<TutanotaEmailData>) => Promise<"take" | "jump" | "continue">,
+    options: async.RetryOptions<Error> = { times: 180, interval: 1000 },
+    take = 5,
+    pg = this.page,
+  ) {
+    const inbox_list_path = `//div[@aria-label="Inbox"]//ul`;
+    await this.waitFor(inbox_list_path);
+    let prev_inbox_items_count: number;
+    return async.retry<Partial<TutanotaEmailData>>(options, async (callback) => {
+      const inbox_items_path = `${inbox_list_path}/li[not(contains(@style, 'display: none'))]`;
+      const inbox_items_count = await pg.locator(inbox_items_path).count();
+      if (!inbox_items_count) return callback(new Error(`the inbox list is empty`));
+      else if (prev_inbox_items_count && inbox_items_count === prev_inbox_items_count) return callback(Error(`the emails count haven't increase from the last check`));
+      prev_inbox_items_count = inbox_items_count;
+
+      let result: null | Partial<TutanotaEmailData> = null;
+
+      for (let i = 0; i <= Math.min(take, inbox_items_count); i++) {
+        const inbox_item_path = `(${inbox_items_path})[${i}]`;
+
+        const sender_name = (await pg.locator(`${inbox_item_path}//div[contains(@class, "text-ellipsis") and not(contains(@class,"smaller"))]`).textContent()) ?? undefined;
+        const subject = (await pg.locator(`(${inbox_items_path})[${i}]//div[contains(@class, "text-ellipsis") and contains(@class,"smaller")]`).textContent()) ?? undefined;
+
+        const na1 = await filter({ sender_name });
+        if (na1 === "take") {
+          result = { sender_name, subject };
+          break;
+        } else if (na1 === "jump") {
+          continue;
+        }
+
+        await this.waitAndClick(inbox_items_path, undefined, pg);
+        await this.waitUntilStable(undefined, pg);
+
+        const email_details_path = `//div[contains(@class,"header")]//div[@role="button" and position()=2]`;
+
+        const sender_email_address = (await pg.locator(`${email_details_path}//span[contains(@class,"text-break")]`).textContent()) ?? undefined;
+        const sentAt = await pg.locator(`//div[contains(@class,"noscreen")]`).evaluate((node) => {
+          if (!node.textContent) throw `no text content`;
+          const parts = node.textContent.split(" • ");
+          const datePart = parts[0];
+          const timePart = parts[1];
+          const [hours, minutes] = timePart.split(":").map(Number);
+
+          const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          let day, month, year;
+
+          const dayMonthYearMatch = datePart.match(/\w+, (\d{1,2}) (\w+) (\d{4})/);
+          const monthDayYearMatch = datePart.match(/\w+, (\w+) (\d{1,2}), (\d{4})/);
+
+          if (dayMonthYearMatch) {
+            day = parseInt(dayMonthYearMatch[1], 10);
+            month = monthNames.indexOf(dayMonthYearMatch[2]);
+            year = parseInt(dayMonthYearMatch[3], 10);
+          } else if (monthDayYearMatch) {
+            month = monthNames.indexOf(monthDayYearMatch[1]);
+            day = parseInt(monthDayYearMatch[2], 10);
+            year = parseInt(monthDayYearMatch[3], 10);
+          } else {
+            throw new Error("Date string format not recognized.");
+          }
+
+          return new Date(year, month, day, hours, minutes);
+        });
+        const body = (await pg.locator(`//div[@id="mail-body"]`).evaluate((node) => node.shadowRoot?.innerHTML)) ?? undefined;
+
+        const na2 = await filter({ sender_name });
+        if (na2 === "take") {
+          result = { sender_name, subject, sender_email_address, sentAt, body };
+          break;
+        } else {
+          result = null;
+        }
+      }
+      if (!result) return callback(Error(`target not found`));
+
+      callback(null, result);
+    });
   }
 }
 

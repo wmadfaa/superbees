@@ -22,9 +22,7 @@ async function updateStatus(opts: script.SuperbeesScriptFunctionOptions<unknown>
     opts.logger.info(`verify email status`);
     const status = await $.login(entity.email);
     await opts.prisma.email.update({ where: { id: entity.emailId }, data: { status } } as any);
-
-    if (!/VERIFIED|PENDING/.test(status)) throw `completed with status: ${status}`;
-    opts.logger.info(`verified status: ${status}`);
+    opts.logger.info(`updated email status: [ ${entity.email.status} → ${status} ]`);
   } finally {
     await context.close(entity.id);
     await opts.proxy.releaseProxy("dataimpulse", proxy);

@@ -34,6 +34,7 @@ export interface InjectedPage extends pw.Page {
   storageState: InjectedContext["storageState"];
   fingerprint?: fg.BrowserFingerprintWithHeaders;
   geolocation?: pw.Geolocation;
+  context(): BrowserContext;
 }
 export async function newInjectedContext(browser: pw.Browser, options: NewInjectedContextOptions): Promise<InjectedContext> {
   const generator = new FingerprintGenerator();
@@ -91,6 +92,6 @@ export async function newInjectedPersistentContext(driver: (typeof browsers)[Sup
 function makeNewPageFunction(context: BrowserContext, fingerprint?: fg.BrowserFingerprintWithHeaders, geolocation?: pw.Geolocation) {
   return async (): Promise<InjectedPage> => {
     const page = await context.newPage();
-    return create(page, { fingerprint, geolocation, storageState: context.storageState });
+    return create(page, { fingerprint, geolocation, storageState: context.storageState, context: () => context });
   };
 }
