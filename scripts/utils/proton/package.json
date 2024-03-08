@@ -1,0 +1,8 @@
+{
+  "name": "@superbees-script-utils/proton",
+  "version": "0.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@superbees/script": "workspace:*"
+  }
+}

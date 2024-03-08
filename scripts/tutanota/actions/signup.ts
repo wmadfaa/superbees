@@ -3,7 +3,6 @@ import { faker } from "@faker-js/faker";
 import { EmailPlatform, EmailStatus } from "@prisma/client";
 
 import * as script from "@superbees/script";
-import { utils } from "@superbees/script";
 
 import Tutanota from "../../utils/tutanota/src/tutanota";
 
@@ -13,11 +12,11 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     driverType: "chromium",
     browserContextOptions: { permissions: ["clipboard-read", "clipboard-write"], proxy: { server: proxy.server } },
   });
-  await context.cache.attachCacheHandlers(/^http(s?):\/\/app\.tuta\.com\/(?!rest).*/);
+  await context.cache.attachCacheHandlers(script.constants.CACHEABLE_REGEX.TUTANOTA_CACHEABLE_REGEX);
   const page = await context.newPage();
   const $: Tutanota = await opts.util("tutanota", [page, opts]);
 
-  const entity = await utils.profile.createProfile();
+  const entity = await script.utils.profile.createProfile();
   const storeDB = {
     domain: "@tutamail.com",
     username: faker.internet.displayName({ firstName: entity.firstname, lastName: entity.lastname }).toLowerCase(),
@@ -47,7 +46,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     await $.waitFor(`//div[@role="menu"]`);
     const count = await page.locator(`//button[@role="menuitem" and not(descendant::*[local-name() = 'svg'])]`).count();
     await $.waitAndClick(`//button[@role="menuitem" and not(descendant::*[local-name() = 'svg'])][${faker.number.int({ min: 1, max: count })}]`);
-    await utils.sleep(100);
+    await script.utils.sleep(100);
     const domain = await page.locator(`//button[@title='Domain' and @aria-label='Domain']/preceding-sibling::div[1]`).textContent();
     if (!domain) throw `couldn't get the selected account domain`;
     storeDB.domain = domain;

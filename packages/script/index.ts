@@ -10,6 +10,9 @@ export type PWwaitForURLUrl = Parameters<pw.Page["waitForURL"]>[0];
 export type PWwaitForURLOptions = Parameters<pw.Page["waitForURL"]>[1];
 
 type PWLocatorState = "attached" | "detached" | "visible" | "hidden";
+
+export type WaitForIframeOptions = Parameters<pw.Locator["waitFor"]>[0] & { retry: async.RetryOptions<string> };
+
 export interface TrackLocatorSateUntilOptions<OF extends Primitive, OR extends Primitive> {
   retry?: async.RetryOptions<Error>;
   state: (OF | OR | PWLocatorState)[];
@@ -33,8 +36,28 @@ export class SuperbeesScript {
     await this.unThrow(pg.waitForLoadState("networkidle", { timeout: timeout / 3 }));
   }
 
+  public async waitForFrame(locator: pw.Locator | string, options: WaitForIframeOptions = { retry: { times: 5, interval: 1000 } }, pg = this.page) {
+    locator = this.locator(locator, pg);
+
+    return async.retry<pw.Frame, string>(options.retry, async (callback) => {
+      locator = await this.waitFor(locator, options);
+
+      const elementHandle = await locator.elementHandle();
+      if (!elementHandle) return callback(`ElementHandle is missing`);
+
+      const iframe = await elementHandle.contentFrame();
+      if (!iframe) return callback(`iframe is missing`);
+
+      await this.unThrow(iframe?.waitForLoadState("load", { timeout: 600 }));
+      await this.unThrow(iframe?.waitForLoadState("domcontentloaded", { timeout: 600 }));
+      await this.unThrow(iframe?.waitForLoadState("networkidle", { timeout: 600 }));
+
+      return callback(null, iframe);
+    });
+  }
+
   public async waitFor(locator: pw.Locator | string, options?: PWwaitForOptions, pg = this.page) {
-    locator = this.locator(locator);
+    locator = this.locator(locator, pg);
     await locator.waitFor(options);
     return locator;
   }
@@ -158,4 +181,5 @@ export class SuperbeesScript {
 
 export * from "./src/types";
 export * as utils from "./src/utils";
+export * as constants from "./src/constants";
 export default SuperbeesScript;

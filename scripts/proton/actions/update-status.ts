@@ -1,6 +1,6 @@
 import * as script from "@superbees/script";
 
-import Tutanota from "../../utils/tutanota/src/tutanota";
+import Proton from "../../utils/proton/src/proton";
 
 async function updateStatus(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
   const entity = await opts.prisma.entity.findFirstOrThrow({ where: { id: opts.entityId ?? "" }, include: { email: true } });
@@ -10,13 +10,14 @@ async function updateStatus(opts: script.SuperbeesScriptFunctionOptions<unknown>
     driverType: "chromium",
     browserContextOptions: { proxy: { server: proxy.server } },
   });
-  await context.cache.attachCacheHandlers(script.constants.CACHEABLE_REGEX.TUTANOTA_CACHEABLE_REGEX);
+  await context.cache.attachCacheHandlers((url) =>
+    [script.constants.CACHEABLE_REGEX.PROTON_ACCOUNT_CACHEABLE_REGEX, script.constants.CACHEABLE_REGEX.PROTON_MAIL_CACHEABLE_REGEX].some((r) => r.test(url.toString())),
+  );
+
   const page = await context.newPage();
-  const $: Tutanota = await opts.util("tutanota", [page, opts]);
+  const $: Proton = await opts.util("proton", [page, opts]);
 
   try {
-    await $.go_to_root_if_needed();
-
     opts.logger.info(`verify email status`);
     const status = await $.login(entity.email);
     await opts.prisma.email.update({ where: { id: entity.emailId }, data: { status } } as any);
