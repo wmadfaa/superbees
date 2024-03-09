@@ -18,9 +18,9 @@ model Entity {
   browser   Json     @default("{}")
   metadata  Json     @default("{}")
 
-  emails   Email[]
-  accounts Account[]
+  email    Email?
   wallets  Wallet[]
+  accounts Account[]
   airdrops Airdrop[]
 
   createdAt DateTime @default(now())
@@ -40,15 +40,14 @@ model Wallet {
   mnemonic   String
   password   String
   metadata   Json       @default("{}")
-  usedBy     String[]   @default([])
 
-  entities Entity[]
-  airdrops Airdrop[]
+  entityId String @unique
+  entity   Entity @relation(fields: [entityId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([type, publicKey])
+  @@unique([entityId, type])
 }
 
 enum EmailStatus {
@@ -74,20 +73,17 @@ model Email {
   metadata Json          @default("{}")
   usedBy   String[]      @default([])
 
-  parentId    String?
-  parentEmail Email?  @relation("EmailToEmail", fields: [parentId], references: [id])
-  childEmails Email[] @relation("EmailToEmail")
-
-  entityId String
+  entityId String @unique
   entity   Entity @relation(fields: [entityId], references: [id])
 
   accounts Account[]
-  airdrops Airdrop[]
+
+  parentId String?
+  parent   Email?  @relation("EmailToEmail", fields: [parentId], references: [id])
+  children Email[] @relation("EmailToEmail")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@unique([platform, status, entityId])
 }
 
 enum AccountStatus {
@@ -111,19 +107,17 @@ model Account {
   metadata Json            @default("{}")
   usedBy   String[]        @default([])
 
-  entityId String
+  entityId String @unique
   entity   Entity @relation(fields: [entityId], references: [id])
 
-  emailId String
+  emailId String @unique
   email   Email  @relation(fields: [emailId], references: [id])
-
-  airdropId String?
-  airdrop   Airdrop? @relation(fields: [airdropId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([platform, status, entityId, airdropId])
+  @@unique([entityId, platform], name: "entityId_platform")
+  @@unique([emailId, platform], name: "emailId_platform")
 }
 
 enum AirdropStatus {
@@ -139,19 +133,11 @@ model Airdrop {
   status   AccountStatus @default(UNKNOWN)
   metadata Json          @default("{}")
 
-  entityId String
+  entityId String @unique
   entity   Entity @relation(fields: [entityId], references: [id])
-
-  walletId String
-  wallet   Wallet @relation(fields: [walletId], references: [id])
-
-  emailId String?
-  email   Email?  @relation(fields: [emailId], references: [id])
-
-  accounts Account[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([name, status, entityId])
+  @@unique([entityId, name])
 }
