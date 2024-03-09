@@ -4,6 +4,8 @@ import { Email } from "@prisma/client";
 import * as script from "@superbees/script";
 import captchaSolver from "./captcha-solver";
 import { merge } from "lodash";
+import type * as pw from "playwright";
+import { Primitive, PWwaitForOptions } from "@superbees/script";
 
 export interface ProtonEmailData {
   sentAt: Date;
@@ -39,6 +41,23 @@ class Proton extends script.SuperbeesScript {
     const iframe = this.page.frame({ name: "pcaptcha" });
     if (!iframe) throw `pcaptcha iframe is missing`;
     await this.waitAndClick(iframe.locator(`//button[text()="Next"]`));
+  }
+
+  wait_for_loading<OF extends Primitive, OR extends Primitive>([loader, target]: [loader: script.RaceLocator<OF, OR>, target: script.RaceLocator<OF, OR>]) {
+    return async.retry<OF | OR, string>({ times: 20, interval: 1000 }, async (callback) => {
+      const state = await this.raceUntilLocator<OF | "refresh", OR | "unknown">([
+        loader,
+        [`button >> text="Refresh the page"`, { onfulfilled: "refresh", onrejected: "unknown" }],
+        [`button >> text="refresh the page"`, { onfulfilled: "refresh", onrejected: "unknown" }],
+        target,
+      ]);
+
+      if (!state || /refresh|unknown/.test(String(state)) || state == loader[1].onfulfilled) {
+        if (state === "refresh") await this.unThrow(this.page.reload());
+        return callback("retry");
+      }
+      return callback(null, state as OF | OR);
+    });
   }
 
   async get_expected_email(

@@ -13,12 +13,14 @@ type PWLocatorState = "attached" | "detached" | "visible" | "hidden";
 
 export type WaitForIframeOptions = Parameters<pw.Locator["waitFor"]>[0] & { retry: async.RetryOptions<string> };
 
+export type RaceLocator<OF extends Primitive, OR extends Primitive> = [locator: pw.Locator | string, options: PWwaitForOptions & { onfulfilled: OF; onrejected?: OR }];
+
 export interface TrackLocatorSateUntilOptions<OF extends Primitive, OR extends Primitive> {
   retry?: async.RetryOptions<Error>;
   state: (OF | OR | PWLocatorState)[];
   timeout?: number;
   escape_sticky_state_after?: number;
-  extra_locators?: [locator: pw.Locator | string, options: PWwaitForOptions & { onfulfilled: OF; onrejected?: OR }][];
+  extra_locators?: RaceLocator<OF, OR>[];
 }
 export class SuperbeesScript {
   constructor(protected page: InjectedPage) {}
@@ -90,10 +92,7 @@ export class SuperbeesScript {
     if (await locator.isVisible()) await locator.click();
   }
 
-  public async raceUntilLocator<OF extends Primitive, OR extends Primitive>(
-    locators: [locator: pw.Locator | string, options: PWwaitForOptions & { onfulfilled: OF; onrejected?: OR }][],
-    pg = this.page,
-  ) {
+  public async raceUntilLocator<OF extends Primitive, OR extends Primitive>(locators: RaceLocator<OF, OR>[], pg = this.page) {
     return Promise.race(
       locators.map(([l, o], i, a) =>
         this.waitFor(l, merge({ timeout: (o.timeout ?? 3000) + (a.length - i) * 10 }, o), pg).then(
@@ -119,7 +118,7 @@ export class SuperbeesScript {
   }
 
   public async raceUntilLocatorOrUrl<OF extends Primitive, OR extends Primitive>(
-    locators: [locator: pw.Locator | string, options: PWwaitForOptions & { onfulfilled: OF; onrejected?: OR }][],
+    locators: RaceLocator<OF, OR>[],
     urls: [url: PWwaitForURLUrl, options: PWwaitForURLOptions & { onfulfilled: OF; onrejected?: OR }][],
     pg = this.page,
   ) {
@@ -173,7 +172,7 @@ export class SuperbeesScript {
     });
   }
 
-  private locator(locator: pw.Locator | string, pg = this.page) {
+  public locator(locator: pw.Locator | string, pg = this.page) {
     if (typeof locator === "string") locator = pg.locator(locator);
     return locator;
   }

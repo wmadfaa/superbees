@@ -18,7 +18,9 @@ model Entity {
   browser   Json     @default("{}")
   metadata  Json     @default("{}")
 
-  email    Email?
+  emailId String @unique
+  email   Email  @relation(fields: [emailId], references: [id])
+
   wallets  Wallet[]
   accounts Account[]
   airdrops Airdrop[]
@@ -73,9 +75,7 @@ model Email {
   metadata Json          @default("{}")
   usedBy   String[]      @default([])
 
-  entityId String @unique
-  entity   Entity @relation(fields: [entityId], references: [id])
-
+  entity   Entity?
   accounts Account[]
 
   parentId String?
