@@ -33,11 +33,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
   };
 
   try {
-    await async.retry({ times: 5, interval: 200 }, async (callback) => {
-      const response = await page.goto("https://account.proton.me/mail/signup");
-      if (response?.status() !== 200) callback(new Error("failed to load page"));
-      callback(null);
-    });
+    await page.goto("https://account.proton.me/mail/signup");
     await $.waitUntilStable();
 
     opts.logger.info(`select domain`);
@@ -110,8 +106,6 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     if (sdn_state !== "set-display-name") throw `unknown loading state: [${sdn_state}]`;
 
     opts.logger.info(`confirm the username`);
-    const displayName = await $.waitAndGetAttribute(`//input[@id="displayName"]`, "value");
-    if (displayName) storeDB.username = displayName;
     await $.waitAndClick(`//button[text()="Continue"]`);
     await $.waitUntilStable();
 
@@ -133,7 +127,10 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     await $.waitAndClick(`//dialog[.//h1[text()="Automatically forward emails"]]//button[text()="Skip"]`);
     await $.waitAndClick(`//div[@data-testid="onboarding-checklist"]//button[text()="Maybe later"]`);
 
-    storeDB.status = EmailStatus.VERIFIED;
+    opts.logger.info(`verify ${EmailPlatform.PROTONMAIL} status`);
+    storeDB.status = await $.login({ username: `${storeDB.username}${storeDB.domain}`, password: storeDB.password });
+    if (!/VERIFIED|PENDING/.test(storeDB.status)) throw `completed with status: ${storeDB.status}`;
+    opts.logger.info(`verified status: ${storeDB.status}`);
   } finally {
     if (storeDB.status === EmailStatus.VERIFIED) {
       const $entity = await opts.prisma.$transaction(async (prisma) => {

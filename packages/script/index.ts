@@ -92,6 +92,11 @@ export class SuperbeesScript {
     await this.unThrow(locator.scrollIntoViewIfNeeded({ timeout: options?.timeout }));
     return locator.getAttribute(attribute, { timeout: options?.timeout });
   }
+  public async waitAndGetTextContent(locator: pw.Locator | string, options?: PWwaitForOptions, pg = this.page) {
+    locator = await this.waitFor(locator, options, pg);
+    await this.unThrow(locator.scrollIntoViewIfNeeded({ timeout: options?.timeout }));
+    return locator.textContent({ timeout: options?.timeout });
+  }
 
   public async clickIfVisible(locator: pw.Locator | string, pg = this.page) {
     locator = this.locator(locator);

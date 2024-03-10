@@ -122,11 +122,10 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     await $.waitAndClick(`//button[@title="Ok"]`);
     await $.waitUntilStable();
 
-    opts.logger.info(`verify email status`);
-    storeDB.status = await $.login({ username: `${storeDB.username}${storeDB.domain}`, password: storeDB.password, metadata: null });
+    opts.logger.info(`verify ${EmailPlatform.TUTANOTA} status`);
+    storeDB.status = await $.login({ username: `${storeDB.username}${storeDB.domain}`, password: storeDB.password });
     if (!/VERIFIED|PENDING/.test(storeDB.status)) throw `completed with status: ${storeDB.status}`;
     opts.logger.info(`verified status: ${storeDB.status}`);
-    await $.waitUntilStable(10000);
   } finally {
     if ([EmailStatus.VERIFIED, EmailStatus.PENDING].some((s) => s === storeDB.status)) {
       const $entity = await opts.prisma.$transaction(async (prisma) => {

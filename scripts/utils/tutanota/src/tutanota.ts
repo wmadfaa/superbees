@@ -5,7 +5,7 @@ import * as script from "@superbees/script";
 import captchaSolver from "./captcha-solver";
 
 export interface TutanotaEmailData {
-  sentAt: Date;
+  sentAt: number;
   subject: string;
   sender_name: string;
   sender_email_address: string;
@@ -23,18 +23,14 @@ class Tutanota extends script.SuperbeesScript {
   async go_to_root_if_needed() {
     await this.waitUntilStable();
     if (!(await this.unThrow(this.waitFor(`//div[@id="login-view"]`, { timeout: 100 }), { onfulfilled: true, onrejected: false }))) {
-      await async.retry({ times: 5, interval: 200 }, async (callback) => {
-        const response = await this.page.goto("https://app.tuta.com");
-        if (response?.status() !== 200) callback(new Error("failed to load page"));
-        callback(null);
-      });
+      await this.page.goto("https://app.tuta.com");
       await this.waitUntilStable();
       return true;
     }
     return false;
   }
 
-  async login(email: Pick<Email, "username" | "password" | "metadata">) {
+  async login(email: Pick<Email, "username" | "password">) {
     await this.go_to_root_if_needed();
 
     const login_with_credentials_button = `//button[@title="Log in"]`;
@@ -93,29 +89,28 @@ class Tutanota extends script.SuperbeesScript {
 
   async get_expected_email(
     filter: (data: Partial<TutanotaEmailData>) => Promise<"take" | "jump" | "continue">,
-    options: async.RetryOptions<Error> = { times: 180, interval: 1000 },
+    options: async.RetryOptions<string> = { times: 180, interval: 1000 },
     take = 5,
-    pg = this.page,
   ) {
     const inbox_list_path = `//div[@aria-label="Inbox"]//ul`;
     await this.waitFor(inbox_list_path);
     let prev_inbox_items_count: number;
-    return async.retry<Partial<TutanotaEmailData>>(options, async (callback) => {
+    return async.retry<Partial<TutanotaEmailData>, string>(options, async (callback) => {
       const inbox_items_path = `${inbox_list_path}/li[not(contains(@style, 'display: none'))]`;
-      const inbox_items_count = await pg.locator(inbox_items_path).count();
-      if (!inbox_items_count) return callback(new Error(`the inbox list is empty`));
-      else if (prev_inbox_items_count && inbox_items_count === prev_inbox_items_count) return callback(Error(`the emails count haven't increase from the last check`));
+      const inbox_items_count = await this.locator(inbox_items_path).count();
+      if (!inbox_items_count) return callback(`the inbox list is empty`);
+      else if (prev_inbox_items_count && inbox_items_count === prev_inbox_items_count) return callback(`the emails count haven't increase from the last check`);
       prev_inbox_items_count = inbox_items_count;
 
       let result: null | Partial<TutanotaEmailData> = null;
 
       for (let i = 0; i <= Math.min(take, inbox_items_count); i++) {
-        const inbox_item_path = `(${inbox_items_path})[${i}]`;
+        const inbox_item_path = `(${inbox_items_path})[${i + 1}]`;
 
-        const sender_name = (await pg.locator(`${inbox_item_path}//div[contains(@class, "text-ellipsis") and not(contains(@class,"smaller"))]`).textContent()) ?? undefined;
-        const subject = (await pg.locator(`(${inbox_items_path})[${i}]//div[contains(@class, "text-ellipsis") and contains(@class,"smaller")]`).textContent()) ?? undefined;
+        const sender_name = (await this.waitAndGetTextContent(`${inbox_item_path}//div[contains(@class, "text-ellipsis") and not(contains(@class,"smaller"))]`)) ?? undefined;
+        const subject = (await this.waitAndGetTextContent(`(${inbox_items_path})[${i}]//div[contains(@class, "text-ellipsis") and contains(@class,"smaller")]`)) ?? undefined;
 
-        const na1 = await filter({ sender_name });
+        const na1 = await filter({ sender_name, subject });
         if (na1 === "take") {
           result = { sender_name, subject };
           break;
@@ -123,13 +118,13 @@ class Tutanota extends script.SuperbeesScript {
           continue;
         }
 
-        await this.waitAndClick(inbox_items_path, undefined, pg);
-        await this.waitUntilStable(undefined, pg);
+        await this.waitAndClick(inbox_items_path);
+        await this.waitUntilStable();
 
         const email_details_path = `//div[contains(@class,"header")]//div[@role="button" and position()=2]`;
 
-        const sender_email_address = (await pg.locator(`${email_details_path}//span[contains(@class,"text-break")]`).textContent()) ?? undefined;
-        const sentAt = await pg.locator(`//div[contains(@class,"noscreen")]`).evaluate((node) => {
+        const sender_email_address = (await this.waitAndGetTextContent(`${email_details_path}//span[contains(@class,"text-break")]`)) ?? undefined;
+        const sentAt = await this.locator(`//div[contains(@class,"noscreen")]`).evaluate((node) => {
           if (!node.textContent) throw `no text content`;
           const parts = node.textContent.split(" • ");
           const datePart = parts[0];
@@ -154,9 +149,9 @@ class Tutanota extends script.SuperbeesScript {
             throw new Error("Date string format not recognized.");
           }
 
-          return new Date(year, month, day, hours, minutes);
+          return new Date(year, month, day, hours, minutes).getTime();
         });
-        const body = (await pg.locator(`//div[@id="mail-body"]`).evaluate((node) => node.shadowRoot?.innerHTML)) ?? undefined;
+        const body = (await this.locator(`//div[@id="mail-body"]`).evaluate((node) => node.shadowRoot?.innerHTML)) ?? undefined;
 
         const na2 = await filter({ sender_name });
         if (na2 === "take") {
@@ -166,7 +161,7 @@ class Tutanota extends script.SuperbeesScript {
           result = null;
         }
       }
-      if (!result) return callback(Error(`target not found`));
+      if (!result) return callback(`target not found`);
 
       callback(null, result);
     });

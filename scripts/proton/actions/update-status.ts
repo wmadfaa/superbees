@@ -2,7 +2,7 @@ import * as script from "@superbees/script";
 
 import Proton from "../../utils/proton/src/proton";
 
-async function updateStatus(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
+async function updateStatus(opts: script.SuperbeesScriptFunctionOptions<any>) {
   const entity = await opts.prisma.entity.findFirstOrThrow({ where: { id: opts.entityId ?? "" }, include: { email: true } });
 
   const proxy = await opts.proxy.requestProxy("dataimpulse", { sticky: true });
