@@ -1,18 +1,17 @@
 import * as async from "async";
 import { faker } from "@faker-js/faker";
-import { EmailPlatform, EmailStatus, Email } from "@prisma/client";
+import { EmailPlatform, EmailStatus } from "@prisma/client";
 
 import * as script from "@superbees/script";
 
 import Proton from "../../utils/proton/src/proton";
-import Tutanota from "../../utils/tutanota/src/tutanota";
 
 async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
   const proxy = await opts.proxy.requestProxy("dataimpulse", { sticky: true });
   const context = await opts.browser.newContext("", {
     driverType: "chromium",
     fingerprintOptions: { screen: { maxWidth: 1440 } },
-    browserContextOptions: { permissions: ["clipboard-read", "clipboard-write"], proxy: { server: proxy.server } },
+    browserContextOptions: { proxy: { server: proxy.server } },
   });
   await context.cache.attachCacheHandlers((url) =>
     [
@@ -31,7 +30,6 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     username: faker.internet.displayName({ firstName: entity.firstname, lastName: entity.lastname }).toLowerCase(),
     password: faker.internet.password({ length: faker.number.int({ min: 12, max: 23 }) }),
     status: EmailStatus.UNKNOWN as EmailStatus,
-    entityId: undefined as string | undefined,
   };
 
   try {
@@ -41,8 +39,9 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
       callback(null);
     });
     await $.waitUntilStable();
-    const username = await $.waitForFrame(`//iframe[@title="Username"]`);
 
+    opts.logger.info(`select domain`);
+    const username = await $.waitForFrame(`//iframe[@title="Username"]`);
     const select_domain_button = username.locator(`//button[@id="select-domain"]`);
     if (Math.random() > 0.65) {
       await $.waitAndClick(select_domain_button);
@@ -54,9 +53,11 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     if (!domain) throw `couldn't get the selected account domain`;
     storeDB.domain = domain;
 
+    opts.logger.info(`enter password`);
     await $.waitAndFill(`//input[@id="password"]`, storeDB.password);
     await $.waitAndFill(`//input[@id="repeat-password"]`, storeDB.password);
 
+    opts.logger.info(`enter username`);
     await async.retry<void, string>(3, async (callback) => {
       await $.waitAndFill(username.locator(`//input[@id="email"]`), storeDB.username);
       await $.waitAndClick(`//button[text()="Create account"]`);
@@ -66,6 +67,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
         [`//button[text()="Continue with Free"]`, { onfulfilled: "success", onrejected: "unknown signup flow" }],
       ]);
       if (state !== "success") {
+        if (state === "Username already used") await $.waitAndClick(`//button[@data-testid="notification:undo-button"]`);
         storeDB.username = faker.internet.displayName({ firstName: entity.firstname, lastName: entity.lastname }).toLowerCase();
         return callback(state);
       }
@@ -73,6 +75,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
       return callback(null);
     });
 
+    opts.logger.info(`select free plan`);
     await $.waitAndClick(`//button[text()="Continue with Free"]`);
     await $.waitUntilStable();
 
@@ -91,86 +94,61 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     ]);
     if (!state || state === "unknown") throw `no visible verification method was found`;
 
+    opts.logger.info(`solve captcha`);
     if (state.startsWith("captcha")) {
       if (state === "captcha-tab-unselected") await $.waitAndClick(`//button[@data-testid="tab-header-captcha-button"]`);
       await $.solve_captcha();
-    } else if (state.startsWith("email")) {
-      if (state === "email-tab-unselected") await $.waitAndClick(`//button[@data-testid="tab-header-email-button"]`);
-
-      const verification_email_page = await context.newPage();
-      try {
-        const $tutanota: Tutanota = await opts.util("tutanota", [verification_email_page, opts]);
-
-        const verification_email_account = await async.retry<Email, string>(3, async (callback) => {
-          const $e = await opts.prisma.$transaction(async (prisma) => {
-            const emails_filter = { status: EmailStatus.VERIFIED, NOT: { usedBy: { has: EmailPlatform.PROTONMAIL } } };
-            const unused_emails_count = await prisma.email.count({ where: emails_filter });
-            const { id, usedBy } = await prisma.email.findFirstOrThrow({ where: emails_filter, take: 1, skip: Math.floor(Math.random() * unused_emails_count) } as any);
-            return prisma.email.update({ where: { id }, data: { usedBy: [...usedBy, EmailPlatform.PROTONMAIL] } } as any);
-          });
-          const email_status = await $tutanota.login($e);
-          if (email_status !== EmailStatus.VERIFIED) return callback("unverified");
-          return callback(null, $e);
-        });
-
-        await page.bringToFront();
-        await $.waitAndFill(`//input[@id="email"]`, verification_email_account.username);
-        await $.waitAndClick(`//button[text()="Get verification code"]`);
-
-        const verificationInput = await $.waitFor(`//input[@id="verification"]`);
-        const sentTime = new Date().getTime() - 10000;
-
-        await verification_email_page.bringToFront();
-        const verification_email = await $tutanota.get_expected_email(async (d) => {
-          if (!("subject" in d)) return "continue";
-          if (d.subject!.includes("Proton Verification Code")) {
-            if (!("sentAt" in d)) return "continue";
-            else if (d.sentAt!.getTime() >= sentTime) {
-              if (!("body" in d)) return "continue";
-              else return "take";
-            }
-          }
-          return "jump";
-        });
-        const verificationCode = verification_email.body?.match(/([0-9]{6}).*/)?.[1];
-        if (!verificationCode) throw "verification code not found";
-
-        await page.bringToFront();
-        await $.waitAndFill(verificationInput, verificationCode);
-        await $.waitAndClick(`//button[text()="Verify"]`);
-      } finally {
-        await verification_email_page.close();
-      }
     } else {
       throw `unsupported verification method: ${state}`;
     }
 
+    opts.logger.info(`wait for loading`);
     const sdn_state = await $.wait_for_loading([
       [`//*[contains(text(),"Creating your account")]`, { onfulfilled: "loading", onrejected: "unknown" }],
       [`//h1[text()="Set a display name"]`, { onfulfilled: "set-display-name", onrejected: "unknown" }],
     ]);
     if (sdn_state !== "set-display-name") throw `unknown loading state: [${sdn_state}]`;
 
-    // //input[@id="displayName"]
+    opts.logger.info(`confirm the username`);
+    const displayName = await $.waitAndGetAttribute(`//input[@id="displayName"]`, "value");
+    if (displayName) storeDB.username = displayName;
     await $.waitAndClick(`//button[text()="Continue"]`);
     await $.waitUntilStable();
 
-    // //h1[text()="Set up a recovery method"]
+    opts.logger.info(`ignore setting a recovery method`);
+    await $.unThrow($.waitFor(`//h1[text()="Set up a recovery method"]`));
     await $.waitAndClick(`//button[text()="Maybe later"]`);
     await $.waitAndClick(`//button[text()="Confirm"]`);
 
+    opts.logger.info(`wait for loading`);
     const obs_state = await $.wait_for_loading([
       [`//*[contains(text(),"Loading Proton Mail")]`, { onfulfilled: "loading", onrejected: "unknown" }],
       [`//dialog[.//h1[text()="Congratulations on choosing privacy"]]`, { onfulfilled: "congratulations", onrejected: "unknown" }],
     ]);
     if (obs_state !== "congratulations") throw `unknown loading state: [${obs_state}]`;
 
+    opts.logger.info(`complete onboarding steps`);
     await $.waitAndClick(`//dialog[.//h1[text()="Congratulations on choosing privacy"]]//button[text()="Next"]`);
     await $.waitAndClick(`//dialog[.//h1[text()="Pick a theme"]]//button[text()="Next"]`);
     await $.waitAndClick(`//dialog[.//h1[text()="Automatically forward emails"]]//button[text()="Skip"]`);
     await $.waitAndClick(`//div[@data-testid="onboarding-checklist"]//button[text()="Maybe later"]`);
+
+    storeDB.status = EmailStatus.VERIFIED;
   } finally {
-    await context.close(storeDB.entityId);
+    if (storeDB.status === EmailStatus.VERIFIED) {
+      const $entity = await opts.prisma.$transaction(async (prisma) => {
+        const { id } = await prisma.email.create({
+          data: { platform: EmailPlatform.PROTONMAIL, username: `${storeDB.username}${storeDB.domain}`, password: storeDB.password, status: storeDB.status } as any,
+        });
+        return prisma.entity.create({
+          data: { emailId: id, firstname: entity.firstname, lastname: entity.lastname, birthdate: entity.birthdate, gender: entity.gender, country: entity.country } as any,
+        });
+      });
+      await context.close($entity.id);
+    } else {
+      await context.close();
+    }
+
     await opts.proxy.releaseProxy("dataimpulse", proxy);
   }
 }

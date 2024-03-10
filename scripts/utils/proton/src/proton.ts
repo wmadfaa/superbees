@@ -1,11 +1,9 @@
 import * as async from "async";
+import { merge } from "lodash";
 import { Email } from "@prisma/client";
 
 import * as script from "@superbees/script";
 import captchaSolver from "./captcha-solver";
-import { merge } from "lodash";
-import type * as pw from "playwright";
-import { Primitive, PWwaitForOptions } from "@superbees/script";
 
 export interface ProtonEmailData {
   sentAt: Date;
@@ -43,7 +41,7 @@ class Proton extends script.SuperbeesScript {
     await this.waitAndClick(iframe.locator(`//button[text()="Next"]`));
   }
 
-  wait_for_loading<OF extends Primitive, OR extends Primitive>([loader, target]: [loader: script.RaceLocator<OF, OR>, target: script.RaceLocator<OF, OR>]) {
+  wait_for_loading<OF extends script.Primitive, OR extends script.Primitive>([loader, target]: [loader: script.RaceLocator<OF, OR>, target: script.RaceLocator<OF, OR>]) {
     return async.retry<OF | OR, string>({ times: 20, interval: 1000 }, async (callback) => {
       const state = await this.raceUntilLocator<OF | "refresh", OR | "unknown">([
         loader,

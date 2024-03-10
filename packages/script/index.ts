@@ -87,6 +87,12 @@ export class SuperbeesScript {
     await locator.selectOption(value.toString());
   }
 
+  public async waitAndGetAttribute(locator: pw.Locator | string, attribute: string, options?: PWwaitForOptions, pg = this.page) {
+    locator = await this.waitFor(locator, options, pg);
+    await this.unThrow(locator.scrollIntoViewIfNeeded({ timeout: options?.timeout }));
+    return locator.getAttribute(attribute, { timeout: options?.timeout });
+  }
+
   public async clickIfVisible(locator: pw.Locator | string, pg = this.page) {
     locator = this.locator(locator);
     if (await locator.isVisible()) await locator.click();

@@ -10,7 +10,8 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
   const proxy = await opts.proxy.requestProxy("dataimpulse", { sticky: true });
   const context = await opts.browser.newContext("", {
     driverType: "chromium",
-    browserContextOptions: { permissions: ["clipboard-read", "clipboard-write"], proxy: { server: proxy.server } },
+    fingerprintOptions: { screen: { maxWidth: 1440 } },
+    browserContextOptions: { proxy: { server: proxy.server } },
   });
   await context.cache.attachCacheHandlers(script.constants.CACHEABLE_REGEX.TUTANOTA_CACHEABLE_REGEX);
   const page = await context.newPage();
@@ -21,7 +22,6 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     domain: "@tutamail.com",
     username: faker.internet.displayName({ firstName: entity.firstname, lastName: entity.lastname }).toLowerCase(),
     password: faker.internet.password({ length: faker.number.int({ min: 12, max: 23 }) }),
-    recoveryCode: "",
     status: EmailStatus.UNKNOWN as EmailStatus,
     entityId: undefined as string | undefined,
   };
@@ -105,7 +105,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     const state = await $.trackLocatorStateUntil(`//p[@id='dialog-title' and .//text()="Preparing account ..."]`, {
       state: ["detached", "blocked", "congratulations", "captcha"],
       extra_locators: [
-        [`//div[@id="dialog-title" and .//*[contains(text(),"Registration is temporarily blocked")]]`, { onfulfilled: "blocked", onrejected: "unknown" }],
+        [`//*[contains(text(),"Registration is temporarily blocked")]`, { onfulfilled: "blocked", onrejected: "unknown" }],
         [`//div[@id="dialog-title" and .//*[text()="Congratulations"]]`, { onfulfilled: "congratulations", onrejected: "unknown" }],
         [`//div[@id="dialog-title" and .//*[text()="Captcha"]]`, { onfulfilled: "captcha", onrejected: "unknown" }],
       ],
@@ -118,9 +118,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
       await $.solve_captcha();
     }
 
-    opts.logger.info(`copy the recovery-code`);
-    await $.waitAndClick(`//button[@title="Copy"]`);
-    storeDB.recoveryCode = await page.evaluate<string>("navigator.clipboard.readText()");
+    opts.logger.info(`ignore the recovery-code`);
     await $.waitAndClick(`//button[@title="Ok"]`);
     await $.waitUntilStable();
 
@@ -129,28 +127,21 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     if (!/VERIFIED|PENDING/.test(storeDB.status)) throw `completed with status: ${storeDB.status}`;
     opts.logger.info(`verified status: ${storeDB.status}`);
     await $.waitUntilStable(10000);
-
-    const $entity = await opts.prisma.entity.create({
-      data: {
-        firstname: entity.firstname,
-        lastname: entity.lastname,
-        birthdate: entity.birthdate,
-        gender: entity.gender,
-        country: entity.country,
-        email: {
-          create: {
-            platform: EmailPlatform.TUTANOTA,
-            username: `${storeDB.username}${storeDB.domain}`,
-            password: storeDB.password,
-            status: storeDB.status,
-            metadata: { recoveryCode: storeDB.recoveryCode },
-          },
-        },
-      },
-    } as any);
-
-    storeDB.entityId = $entity.id;
   } finally {
+    if ([EmailStatus.VERIFIED, EmailStatus.PENDING].some((s) => s === storeDB.status)) {
+      const $entity = await opts.prisma.$transaction(async (prisma) => {
+        const { id } = await prisma.email.create({
+          data: { platform: EmailPlatform.TUTANOTA, username: `${storeDB.username}${storeDB.domain}`, password: storeDB.password, status: storeDB.status } as any,
+        });
+        return prisma.entity.create({
+          data: { emailId: id, firstname: entity.firstname, lastname: entity.lastname, birthdate: entity.birthdate, gender: entity.gender, country: entity.country } as any,
+        });
+      });
+      await context.close($entity.id);
+    } else {
+      await context.close();
+    }
+
     await context.close(storeDB.entityId);
     await opts.proxy.releaseProxy("dataimpulse", proxy);
   }
