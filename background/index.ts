@@ -12,6 +12,7 @@ const prisma = new PrismaClient();
 (async () => {
   const browser = new SuperbeesBrowser({
     chromium: { headless: false },
+    firefox: { headless: false },
   });
   const uncaptcha = new SuperbeesUncaptcha(credentials["captcha-solvers"]);
   const proxy = new SuperbeesProxy(credentials["proxy-services"]);

@@ -101,7 +101,14 @@ class Capsolver {
       ...props,
     });
 
-    return async.retry({ times: 120, interval: 3000, errorFilter: (error) => error.name === `CapsolverTaskResultError` }, async () => this.getTaskResult(task.taskId));
+    return async.retry({ times: 120, interval: 3000, errorFilter: (error) => error.name === `CapsolverTaskResultError` }, async (callback) => {
+      try {
+        const r = await this.getTaskResult(task.taskId);
+        return callback(null, r);
+      } catch (e) {
+        return callback(e as any);
+      }
+    });
   }
 
   public async reCaptchaV2(props: IReCaptchaV2Props): Promise<IReCaptchaV2Result> {
@@ -110,12 +117,20 @@ class Capsolver {
       ...props,
     });
 
-    return async.retry({ times: 120, interval: 3000, errorFilter: (error) => error.name === `CapsolverTaskResultError` }, async () => this.getTaskResult(task.taskId));
+    return async.retry({ times: 120, interval: 3000, errorFilter: (error) => error.name === `CapsolverTaskResultError` }, async (callback) => {
+      return this.getTaskResult(task.taskId).then(
+        (r) => callback(null, r),
+        (e) => callback(e),
+      );
+    });
   }
 
   public async imageToText(props: IImageToTextProps): Promise<IImageToTextResult> {
-    return async.retry({ times: 120, interval: 3000, errorFilter: (error) => error.name === `CapsolverTaskResultError` }, async () =>
-      this.createTask({ type: `ImageToTextTask`, ...props }),
+    return async.retry({ times: 120, interval: 3000, errorFilter: (error) => error.name === `CapsolverTaskResultError` }, async (callback) =>
+      this.createTask({ type: `ImageToTextTask`, ...props }).then(
+        (r) => callback(null, r),
+        (e) => callback(e),
+      ),
     );
   }
 }

@@ -16,7 +16,7 @@ async function main(opts: script.SuperbeesScriptFunctionOptions<IOptions>) {
       return updateStatus(opts);
     }
     default: {
-      throw `unrecognized Tutanota action: ${action}`;
+      throw `unrecognized action: ${action}`;
     }
   }
 }

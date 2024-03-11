@@ -31,10 +31,10 @@ class SuperbeesUncaptcha {
     switch (solver) {
       case CaptchaSolverType.TWO_CAPTCHA:
         if (!this.twoCaptcha) throw new Error(`You must provide the 2captcha credentials on initialization`);
-        return await this.twoCaptcha.funCaptcha(props);
+        return this.twoCaptcha.funCaptcha(props);
       case CaptchaSolverType.CAPSOLVER:
         if (!this.capsolver) throw new Error(`You must provide the capsolver credentials on initialization`);
-        return await this.capsolver.funCaptcha(props);
+        return this.capsolver.funCaptcha(props);
       default:
         throw new Error(`Invalid captcha solver type`);
     }

@@ -1,0 +1,8 @@
+{
+  "name": "@superbees-script-utils/email",
+  "version": "0.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@superbees/script": "workspace:*"
+  }
+}

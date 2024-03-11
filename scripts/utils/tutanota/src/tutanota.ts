@@ -15,7 +15,7 @@ export interface TutanotaEmailData {
 class Tutanota extends script.SuperbeesScript {
   constructor(
     protected readonly page: script.InjectedPage,
-    private readonly opts: script.SuperbeesScriptUtilFunctionOptions<never>,
+    private readonly opts: script.SuperbeesScriptUtilFunctionOptions<unknown>,
   ) {
     super(page);
   }

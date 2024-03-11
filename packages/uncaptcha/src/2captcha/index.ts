@@ -93,7 +93,12 @@ class TwoCaptcha {
       ...props,
     });
 
-    return async.retry({ times: 120, interval: 10000, errorFilter: (error) => error.name === `TwoCaptchaTaskResultError` }, async () => this.getTaskResult(task.taskId));
+    return async.retry({ times: 120, interval: 10000, errorFilter: (error) => error.name === `TwoCaptchaTaskResultError` }, async (callback) => {
+      return this.getTaskResult(task.taskId).then(
+        (r) => callback(null, r),
+        (e) => callback(e),
+      );
+    });
   }
 
   public async imageToText(props: IImageToTextProps): Promise<IImageToTextResult> {
@@ -102,7 +107,12 @@ class TwoCaptcha {
       ...props,
     });
 
-    return async.retry({ times: 120, interval: 10000, errorFilter: (error) => error.name === `TwoCaptchaTaskResultError` }, async () => this.getTaskResult(task.taskId));
+    return async.retry({ times: 120, interval: 10000, errorFilter: (error) => error.name === `TwoCaptchaTaskResultError` }, async (callback) => {
+      return this.getTaskResult(task.taskId).then(
+        (r) => callback(null, r),
+        (e) => callback(e),
+      );
+    });
   }
 }
 

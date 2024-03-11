@@ -135,7 +135,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     if (storeDB.status === EmailStatus.VERIFIED) {
       const $entity = await opts.prisma.$transaction(async (prisma) => {
         const { id } = await prisma.email.create({
-          data: { platform: EmailPlatform.PROTONMAIL, username: `${storeDB.username}${storeDB.domain}`, password: storeDB.password, status: storeDB.status } as any,
+          data: { platform: EmailPlatform.PROTONMAIL, username: `${storeDB.username}@${storeDB.domain}`, password: storeDB.password, status: storeDB.status } as any,
         });
         return prisma.entity.create({
           data: { emailId: id, firstname: entity.firstname, lastname: entity.lastname, birthdate: entity.birthdate, gender: entity.gender, country: entity.country } as any,
