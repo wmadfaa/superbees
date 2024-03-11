@@ -87,73 +87,111 @@ class Proton extends script.SuperbeesScript {
 
   async get_expected_email(
     filter: (data: Partial<ProtonEmailData>) => Promise<"take" | "jump" | "continue">,
-    options: async.RetryOptions<string> = { times: 180, interval: 1000 },
-    take = 5,
+    request_new_code?: () => Promise<void>,
+    options: async.RetryOptions<string> & { request_new_code_after?: number } = { times: 180, interval: 1000, request_new_code_after: 80 },
+    take = 3,
   ) {
+    function even(num: number, direction: "dec" | "inc" = "dec") {
+      if (direction.toLowerCase() === "dec") {
+        return num % 2 === 0 ? num : num - 1;
+      } else if (direction.toLowerCase() === "inc") {
+        return num % 2 === 0 ? num : num + 1;
+      } else {
+        throw new Error("Invalid direction. Valid options are 'dec' or 'inc'.");
+      }
+    }
+
     const inbox_items_path = `//div[@data-shortcut-target="item-container-wrapper"]`;
     await this.waitFor(`${inbox_items_path}/..`);
     let prev_inbox_items_count: number;
+    let no_items_increased_counter = 0;
     return async.retry<Partial<ProtonEmailData>, string>(options, async (callback) => {
+      if (options.request_new_code_after && no_items_increased_counter >= options.request_new_code_after) {
+        await request_new_code?.();
+      }
+
+      if (
+        options.request_new_code_after &&
+        (!(no_items_increased_counter % even(Math.floor(options.request_new_code_after / 4))) || no_items_increased_counter === options.request_new_code_after)
+      ) {
+        await this.waitAndClick(`//*[@data-testid="navigation-link:refresh-folder"]`);
+      }
+
       const inbox_items_count = await this.locator(inbox_items_path).count();
+      console.log({ inbox_items_count });
       if (!inbox_items_count) return callback(`the inbox list is empty`);
-      else if (prev_inbox_items_count && inbox_items_count === prev_inbox_items_count) return callback(`the emails count haven't increase from the last check`);
+      else if (prev_inbox_items_count && inbox_items_count === prev_inbox_items_count) {
+        no_items_increased_counter += 1;
+        return callback(`the emails count haven't increase from the last check`);
+      }
+      no_items_increased_counter = 0;
       prev_inbox_items_count = inbox_items_count;
       let result: null | Partial<ProtonEmailData> = null;
 
-      for (let i = 0; i <= Math.min(take, inbox_items_count); i++) {
-        const inbox_item_path = `(${inbox_items_path})[${i + 1}]`;
-        const sender_name = (await this.waitAndGetTextContent(`${inbox_item_path}//span[@data-testid="message-column:sender-address"]`)) ?? undefined;
-        const subject = (await this.waitAndGetTextContent(`${inbox_item_path}//span[@data-testid="message-row:subject"]`)) ?? undefined;
+      for (let i = 1; i <= Math.min(take, inbox_items_count); i++) {
+        const pr: Partial<ProtonEmailData> = {};
 
-        const na1 = await filter({ sender_name, subject });
+        const inbox_item_path = `(${inbox_items_path})[${i}]`;
+        pr.sender_name = (await this.waitAndGetTextContent(`${inbox_item_path}//span[@data-testid="message-column:sender-address"]`)) ?? undefined;
+        pr.subject = (await this.waitAndGetTextContent(`${inbox_item_path}//span[@data-testid="message-row:subject"]`)) ?? undefined;
+
+        console.log(i, pr);
+        const na1 = await filter({ ...pr });
         if (na1 === "take") {
-          result = { sender_name, subject };
+          result = pr;
           break;
         } else if (na1 === "jump") {
           continue;
         }
 
-        await this.waitAndClick(inbox_items_path);
+        await this.waitAndClick(inbox_item_path);
         await this.waitUntilStable();
 
-        const sender_email_address = (await this.waitAndGetTextContent(`//span[@data-testid="recipient-address"]`)) ?? undefined;
+        pr.sender_email_address = (await this.waitAndGetTextContent(`//span[@data-testid="recipient-address"]`)) ?? undefined;
 
         await this.unThrow(this.waitAndClick(`//button[@data-testid="message-show-details" and @aria-expanded="false"]`));
 
-        const sentAt = await this.locator(`//time[@data-testid="item-date-full"]`).evaluate((node) => {
+        pr.sentAt = await this.locator(`//time[@data-testid="item-date-full"]`).evaluate((node) => {
           if (!node.textContent) throw `no text content`;
-          const [, day, month, year, time] = node.textContent.match(/(\d+) (\w+) (\d+) at (\d+:\d+)/)!;
+          const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-          const months = {
-            January: 0,
-            February: 1,
-            March: 2,
-            April: 3,
-            May: 4,
-            June: 5,
-            July: 6,
-            August: 7,
-            September: 8,
-            October: 9,
-            November: 10,
-            December: 11,
-          };
+          const rf1 = /^(?<day_name>\w+),\s(?<month>\w+)\s(?<day_num>\d{1,2})(th|st|nd|rd),\s(?<year>\d{4})\sat\s(?<hours>\d{1,2}):(?<minutes>\d{1,2})\s(?<meridian>AM|PM)$/;
+          const rf2 = /^(?<day_name>\w+),\s(?<day_num>\d{1,2})\s(?<month>\w+)\s(?<year>\d{4})\sat\s(?<hours>\d{1,2}):(?<minutes>\d{1,2})$/;
 
-          // @ts-ignore
-          const date = new Date(Number(year), months[month], day, ...time.split(":").map(Number));
+          const m1 = node.textContent.match(rf1);
+          const match = m1 ?? node.textContent.match(rf2);
 
-          return date.getTime();
+          let date, month, year, hours, minutes;
+
+          if (match && match.groups) {
+            date = match.groups.day_num;
+            month = months.indexOf(match.groups.month);
+            year = match.groups.year;
+            hours = match.groups.hours;
+            minutes = match.groups.minutes;
+
+            if (m1 && m1.groups?.meridian === "PM") {
+              hours = (parseInt(hours, 10) + 12) % 24;
+            }
+          } else {
+            throw `invalid datetime format ${node.textContent}`;
+          }
+
+          return new Date(Number(year), month, Number(date), Number(hours), Number(minutes)).getTime();
         });
 
         const frame = await this.waitForFrame(`//iframe[@title="Email content"]`);
-        const body = await frame.locator("body").innerHTML();
+        pr.body = await frame.locator("body").innerHTML();
 
-        const na2 = await filter({ sender_name });
+        console.log(i);
+        const na2 = await filter({ ...pr });
+        console.log({ na2 });
         if (na2 === "take") {
-          result = { sender_name, subject, sender_email_address, sentAt, body };
+          result = pr;
           break;
         } else {
           result = null;
+          await this.waitAndClick(`//button[@data-testid="toolbar:back-button"]`);
         }
       }
       if (!result) return callback(`target not found`);

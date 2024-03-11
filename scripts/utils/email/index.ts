@@ -9,6 +9,8 @@ interface Vars {
   platform: EmailPlatform;
 }
 
+export type EmailClass = Tutanota | Proton;
+
 async function main(page: script.InjectedPage, opts: script.SuperbeesScriptUtilFunctionOptions<Vars>) {
   if (!opts.vars?.platform) throw `opts.vars.platform is required`;
 
