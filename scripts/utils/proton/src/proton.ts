@@ -91,16 +91,6 @@ class Proton extends script.SuperbeesScript {
     options: async.RetryOptions<string> & { request_new_code_after?: number } = { times: 180, interval: 1000, request_new_code_after: 80 },
     take = 3,
   ) {
-    function even(num: number, direction: "dec" | "inc" = "dec") {
-      if (direction.toLowerCase() === "dec") {
-        return num % 2 === 0 ? num : num - 1;
-      } else if (direction.toLowerCase() === "inc") {
-        return num % 2 === 0 ? num : num + 1;
-      } else {
-        throw new Error("Invalid direction. Valid options are 'dec' or 'inc'.");
-      }
-    }
-
     const inbox_items_path = `//div[@data-shortcut-target="item-container-wrapper"]`;
     await this.waitFor(`${inbox_items_path}/..`);
     let prev_inbox_items_count: number;
@@ -112,13 +102,12 @@ class Proton extends script.SuperbeesScript {
 
       if (
         options.request_new_code_after &&
-        (!(no_items_increased_counter % even(Math.floor(options.request_new_code_after / 4))) || no_items_increased_counter === options.request_new_code_after)
+        (!(no_items_increased_counter % script.utils.even(Math.floor(options.request_new_code_after / 4))) || no_items_increased_counter === options.request_new_code_after)
       ) {
         await this.waitAndClick(`//*[@data-testid="navigation-link:refresh-folder"]`);
       }
 
       const inbox_items_count = await this.locator(inbox_items_path).count();
-      console.log({ inbox_items_count });
       if (!inbox_items_count) return callback(`the inbox list is empty`);
       else if (prev_inbox_items_count && inbox_items_count === prev_inbox_items_count) {
         no_items_increased_counter += 1;
@@ -135,7 +124,6 @@ class Proton extends script.SuperbeesScript {
         pr.sender_name = (await this.waitAndGetTextContent(`${inbox_item_path}//span[@data-testid="message-column:sender-address"]`)) ?? undefined;
         pr.subject = (await this.waitAndGetTextContent(`${inbox_item_path}//span[@data-testid="message-row:subject"]`)) ?? undefined;
 
-        console.log(i, pr);
         const na1 = await filter({ ...pr });
         if (na1 === "take") {
           result = pr;
@@ -177,15 +165,14 @@ class Proton extends script.SuperbeesScript {
             throw `invalid datetime format ${node.textContent}`;
           }
 
-          return new Date(Number(year), month, Number(date), Number(hours), Number(minutes)).getTime();
+          return new Date(Number(year), month, Number(date), Number(hours), Number(minutes)).setUTCSeconds(0, 0);
         });
 
         const frame = await this.waitForFrame(`//iframe[@title="Email content"]`);
         pr.body = await frame.locator("body").innerHTML();
 
-        console.log(i);
         const na2 = await filter({ ...pr });
-        console.log({ na2 });
+
         if (na2 === "take") {
           result = pr;
           break;
@@ -194,9 +181,10 @@ class Proton extends script.SuperbeesScript {
           await this.waitAndClick(`//button[@data-testid="toolbar:back-button"]`);
         }
       }
+
       if (!result) return callback(`target not found`);
 
-      callback(null, result);
+      return callback(null, result);
     });
   }
 }

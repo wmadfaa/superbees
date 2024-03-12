@@ -89,42 +89,60 @@ class Tutanota extends script.SuperbeesScript {
 
   async get_expected_email(
     filter: (data: Partial<TutanotaEmailData>) => Promise<"take" | "jump" | "continue">,
-    options: async.RetryOptions<string> = { times: 180, interval: 1000 },
-    take = 5,
+    request_new_code?: () => Promise<void>,
+    options: async.RetryOptions<string> & { request_new_code_after?: number } = { times: 180, interval: 1000, request_new_code_after: 80 },
+    take = 3,
   ) {
-    const inbox_list_path = `//div[@aria-label="Inbox"]//ul`;
-    await this.waitFor(inbox_list_path);
+    const inbox_items_path = `//div[@aria-label="Inbox"]//ul/li[not(contains(@style, 'display: none'))]`;
+    await this.waitFor(`${inbox_items_path}/..`);
     let prev_inbox_items_count: number;
+    let no_items_increased_counter = 0;
     return async.retry<Partial<TutanotaEmailData>, string>(options, async (callback) => {
-      const inbox_items_path = `${inbox_list_path}/li[not(contains(@style, 'display: none'))]`;
+      if (options.request_new_code_after && no_items_increased_counter >= options.request_new_code_after) {
+        await request_new_code?.();
+      }
+
+      if (
+        options.request_new_code_after &&
+        (!(no_items_increased_counter % script.utils.even(Math.floor(options.request_new_code_after / 4))) || no_items_increased_counter === options.request_new_code_after)
+      ) {
+        await this.waitAndClick(`//button[@href="#"]`);
+      }
+
       const inbox_items_count = await this.locator(inbox_items_path).count();
       if (!inbox_items_count) return callback(`the inbox list is empty`);
-      else if (prev_inbox_items_count && inbox_items_count === prev_inbox_items_count) return callback(`the emails count haven't increase from the last check`);
+      else if (prev_inbox_items_count && inbox_items_count === prev_inbox_items_count) {
+        no_items_increased_counter += 1;
+        return callback(`the emails count haven't increase from the last check`);
+      }
+      no_items_increased_counter = 0;
       prev_inbox_items_count = inbox_items_count;
 
       let result: null | Partial<TutanotaEmailData> = null;
 
-      for (let i = 0; i <= Math.min(take, inbox_items_count); i++) {
-        const inbox_item_path = `(${inbox_items_path})[${i + 1}]`;
+      for (let i = 1; i <= Math.min(take, inbox_items_count); i++) {
+        const pr: Partial<TutanotaEmailData> = {};
 
-        const sender_name = (await this.waitAndGetTextContent(`${inbox_item_path}//div[contains(@class, "text-ellipsis") and not(contains(@class,"smaller"))]`)) ?? undefined;
-        const subject = (await this.waitAndGetTextContent(`(${inbox_items_path})[${i}]//div[contains(@class, "text-ellipsis") and contains(@class,"smaller")]`)) ?? undefined;
+        const inbox_item_path = `(${inbox_items_path})[${i}]`;
 
-        const na1 = await filter({ sender_name, subject });
+        pr.sender_name = (await this.waitAndGetTextContent(`${inbox_item_path}//div[contains(@class, "text-ellipsis") and not(contains(@class,"smaller"))]`)) ?? undefined;
+        pr.subject = (await this.waitAndGetTextContent(`(${inbox_items_path})[${i}]//div[contains(@class, "text-ellipsis") and contains(@class,"smaller")]`)) ?? undefined;
+
+        const na1 = await filter({ ...pr });
         if (na1 === "take") {
-          result = { sender_name, subject };
+          result = pr;
           break;
         } else if (na1 === "jump") {
           continue;
         }
 
-        await this.waitAndClick(inbox_items_path);
+        await this.waitAndClick(inbox_item_path);
         await this.waitUntilStable();
 
         const email_details_path = `//div[contains(@class,"header")]//div[@role="button" and position()=2]`;
 
-        const sender_email_address = (await this.waitAndGetTextContent(`${email_details_path}//span[contains(@class,"text-break")]`)) ?? undefined;
-        const sentAt = await this.locator(`//div[contains(@class,"noscreen")]`).evaluate((node) => {
+        pr.sender_email_address = (await this.waitAndGetTextContent(`${email_details_path}//span[contains(@class,"text-break")]`)) ?? undefined;
+        pr.sentAt = await this.locator(`//div[contains(@class,"noscreen")]`).evaluate((node) => {
           if (!node.textContent) throw `no text content`;
           const parts = node.textContent.split(" • ");
           const datePart = parts[0];
@@ -149,13 +167,13 @@ class Tutanota extends script.SuperbeesScript {
             throw new Error("Date string format not recognized.");
           }
 
-          return new Date(year, month, day, hours, minutes).getTime();
+          return new Date(year, month, day, hours, minutes).setUTCSeconds(0, 0);
         });
-        const body = (await this.locator(`//div[@id="mail-body"]`).evaluate((node) => node.shadowRoot?.innerHTML)) ?? undefined;
+        pr.body = (await this.locator(`//div[@id="mail-body"]`).evaluate((node) => node.shadowRoot?.innerHTML)) ?? undefined;
 
-        const na2 = await filter({ sender_name });
+        const na2 = await filter({ ...pr });
         if (na2 === "take") {
-          result = { sender_name, subject, sender_email_address, sentAt, body };
+          result = pr;
           break;
         } else {
           result = null;

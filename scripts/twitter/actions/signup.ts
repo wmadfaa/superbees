@@ -26,7 +26,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
   const $: Twitter = await opts.util("twitter", [page, opts]);
 
   const storeDB = {
-    username: faker.internet.displayName({ firstName: entity.firstname, lastName: entity.lastname }).toLowerCase(),
+    username: undefined as string | undefined,
     password: faker.internet.password({ length: faker.number.int({ min: 12, max: 23 }) }),
     status: AccountStatus.UNKNOWN as AccountStatus,
   };
@@ -69,13 +69,15 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
     else if (f_state === "customise-experience-dialog") {
       await $.waitAndClick(`//div[@data-testid="ocfSettingsListNextButton"]`);
       await $.waitUntilStable();
+
       const s_f_state = await $.raceWithCaptcha([[`//input[@name="verfication_code"]`, { onfulfilled: "verification-code-input", onrejected: "unknown" }]]);
       if (s_f_state?.startsWith(`captcha:`)) await $.solveCaptcha(s_f_state);
       else if (s_f_state !== `verification-code-input`) throw `unknown flow: (state=${s_f_state}})`;
     }
 
+    const sentAt = new Date().setUTCSeconds(0, 0);
     const verification_code_input = await $.waitFor(`//input[@name="verfication_code"]`);
-    const sentAt = Date.now() - 10 * 1000;
+
     await email_page.bringToFront();
     const emailData = await $e.get_expected_email(
       async (email) => {
@@ -90,7 +92,6 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
         return "take";
       },
       async () => {
-        console.log("request a refresh");
         await page.bringToFront();
         await $.waitAndClick(`//span[@role="button" and .//span[text()="Didn't receive email?"]]`);
         const dropdown_path = `//div[@data-testid="Dropdown" and .//span[text()="Didn’t receive email?"]]`;
@@ -99,13 +100,102 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
         await email_page.bringToFront();
       },
     );
-
+    await email_page.close();
     const verification_code = emailData.subject?.match(/([0-9]{6}).*/)?.[1];
     if (!verification_code) throw `verification code not found in: ${JSON.stringify(emailData)}`;
 
     await page.bringToFront();
     await $.waitAndFill(verification_code_input, verification_code);
     await $.waitAndClick(`//div[@role="button" and .//span[text()="Next"]]`);
+    await $.waitUntilStable();
+
+    const sp_state = await $.raceUntilLocator([[`//input[@name="password"]`, { onfulfilled: "set-password", onrejected: "unknown", timeout: 3000 }]]);
+    if (!sp_state || sp_state === "unknown") throw `unknown flow: (state=${sp_state})`;
+
+    await $.waitAndFill(`//input[@name="password"]`, storeDB.password);
+    await $.waitAndClick(`//div[@data-testid="LoginForm_Login_Button"]`);
+    await $.waitUntilStable();
+
+    const pp_state = await $.raceUntilLocator([[`//input[@data-testid="fileInput"]`, { onfulfilled: "set-profile-picture", onrejected: "unknown", timeout: 3000 }]]);
+    if (!pp_state || pp_state === "unknown") throw `unknown flow: (state=${pp_state})`;
+
+    await $.waitAndClick(`//div[@data-testid="ocfSelectAvatarSkipForNowButton"]`);
+    await $.waitUntilStable();
+
+    const un_state = await $.raceUntilLocator([[`//input[@name="username"]`, { onfulfilled: "set-username", onrejected: "unknown", timeout: 3000 }]]);
+    if (!un_state || un_state === "unknown") throw `unknown flow: (state=${un_state})`;
+
+    storeDB.username = (await $.waitAndGetAttribute(`//input[@name="username"]`, "value")) ?? undefined;
+    await $.waitAndClick(`//div[@data-testid="ocfEnterUsernameSkipButton"]`);
+    await $.waitUntilStable();
+
+    const tn_state = await $.raceUntilLocator([
+      [`//div[@role="dialog" and @aria-modal="true" and .//span[text()="Turn on notifications"]]`, { onfulfilled: "turn-on-notifications", onrejected: "unknown", timeout: 3000 }],
+    ]);
+    if (!tn_state || tn_state === "unknown") throw `unknown flow: (state=${tn_state})`;
+
+    await $.waitAndClick(`//div[@role="button" and .//span[text()="Skip for now"]]`);
+    await $.waitUntilStable();
+
+    const ws_state = await $.raceUntilLocator([
+      [`//div[@role="dialog" and @aria-modal="true" and .//span[text()="What do you want to see on X?"]]`, { onfulfilled: "set-interests", onrejected: "unknown", timeout: 3000 }],
+    ]);
+    if (!ws_state || ws_state === "unknown") throw `unknown flow: (state=${ws_state})`;
+
+    const interests_path = `//div[@aria-label="Timeline: "]//li[@role="listitem"]`;
+    await $.unThrow($.waitFor(`(${interests_path})[1]`));
+    const interests_count = await $.locator(interests_path).count();
+
+    const selected_interests = new Set<number>();
+
+    while (selected_interests.size < 3) {
+      let ran_idx: number;
+      do {
+        ran_idx = faker.number.int({ min: 1, max: interests_count });
+      } while (selected_interests.has(ran_idx));
+
+      await $.waitAndClick(`(${interests_path})[${ran_idx}]//div[@role="button" and starts-with(@aria-label,"Follow")]`);
+      selected_interests.add(ran_idx);
+    }
+
+    await $.waitAndClick(`//div[@role="button" and .//span[text()="Next"]]`);
+    await $.waitUntilStable();
+    const si2_state = await $.raceUntilLocator([
+      [
+        `//div[@role="dialog" and @aria-modal="true" and .//span[starts-with(text(),"Interests are used")]]`,
+        { onfulfilled: "set-interests-2", onrejected: "unknown", timeout: 3000 },
+      ],
+    ]);
+    if (si2_state === "set-interests-2") {
+      await $.waitAndClick(`//div[@role="button" and .//span[text()="Next"]]`);
+      await $.waitUntilStable();
+    }
+
+    const dm_state = await $.raceUntilLocator([
+      [`//div[@role="dialog" and @aria-modal="true" and .//span[text()="Don’t miss out"]]`, { onfulfilled: "follow-users", onrejected: "unknown", timeout: 3000 }],
+    ]);
+    if (!dm_state || dm_state === "unknown") throw `unknown flow: (state=${dm_state})`;
+
+    const users_path = `//div[@aria-label="Timeline: "]//div[@data-testid="UserCell"]`;
+    await $.unThrow($.waitFor(`(${users_path})[1]`));
+    const users_count = await $.locator(users_path).count();
+
+    const selected_users = new Set<number>();
+
+    while (selected_users.size < 3) {
+      let ran_idx: number;
+      do {
+        ran_idx = faker.number.int({ min: 1, max: users_count });
+      } while (selected_users.has(ran_idx));
+
+      await $.waitAndClick(`(${users_path})[${ran_idx}]`);
+      selected_users.add(ran_idx);
+    }
+
+    await $.waitAndClick(`//div[@role="button" and .//span[text()="Next"]]`);
+    await $.waitUntilStable();
+
+    // //div[@role="button" and .//span[text()="Accept all cookies"]]
   } finally {
     // if (storeDB.status === AccountStatus.VERIFIED) {
     //   await context.close(entity.id);
