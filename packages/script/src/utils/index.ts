@@ -4,6 +4,7 @@ export * as extensions from "./browser-extensions";
 export * as resources from "@superbees/resources";
 export * as profile from "./create-profile";
 export * as wallet from "./create-wallet";
+export * as opensea from "./opensea";
 
 export function even(num: number, direction: "dec" | "inc" = "dec") {
   if (direction.toLowerCase() === "dec") {

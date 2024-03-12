@@ -16,7 +16,7 @@ export type WaitForIframeOptions = Parameters<pw.Locator["waitFor"]>[0] & { retr
 export type RaceLocator<OF extends Primitive, OR extends Primitive> = [locator: pw.Locator | string, options: PWwaitForOptions & { onfulfilled: OF; onrejected?: OR }];
 
 export interface TrackLocatorSateUntilOptions<OF extends Primitive, OR extends Primitive> {
-  retry?: async.RetryOptions<Error>;
+  retry?: async.RetryOptions<string>;
   state: (OF | OR | PWLocatorState)[];
   timeout?: number;
   escape_sticky_state_after?: number;
@@ -103,15 +103,25 @@ export class SuperbeesScript {
     if (await locator.isVisible()) await locator.click();
   }
 
-  public async raceUntilLocator<OF extends Primitive, OR extends Primitive>(locators: RaceLocator<OF, OR>[], pg = this.page) {
-    return Promise.race(
-      locators.map(([l, o], i, a) =>
-        this.waitFor(l, merge({ timeout: (o.timeout ?? 3000) + (a.length - i) * 10 }, o), pg).then(
-          () => o.onfulfilled,
-          () => o.onrejected,
+  public async raceUntilLocator<OF extends Primitive, OR extends Primitive>(
+    locators: RaceLocator<OF, OR>[],
+    options: async.RetryOptions<string> = { times: 3, interval: 1000 },
+    retryFilter?: (state: OF | OR) => boolean | string | null,
+    pg = this.page,
+  ) {
+    return async.retry<OF | OR, string>(options, async (callback) => {
+      const state = await Promise.race(
+        locators.map(([l, o], i, a) =>
+          this.waitFor(l, merge({ timeout: (o.timeout ?? 3000) + (a.length - i) * 10 }, o), pg).then(
+            () => o.onfulfilled,
+            () => o.onrejected,
+          ),
         ),
-      ),
-    );
+      );
+      let errorMsg;
+      if (state === undefined || (errorMsg = retryFilter?.(state))) return callback(typeof errorMsg === "string" ? errorMsg : `retry: (state=${String(state)})`);
+      return callback(null, state);
+    });
   }
 
   public async raceUntilUrl<OF extends Primitive, OR extends Primitive>(
@@ -160,27 +170,29 @@ export class SuperbeesScript {
     locator = this.locator(locator, pg);
     let prev_captured_state: any;
     let sticky_count = 0;
-    return await async.retry<OF | PWLocatorState | OR | "unknown">(retry, async (callback) => {
-      const last_captured_state = await this.raceUntilLocator<OF | PWLocatorState, OR | "unknown">(
-        [
-          ...extra_locators,
-          [locator, { onfulfilled: "visible", onrejected: "unknown", state: "visible", timeout }],
-          [locator, { onfulfilled: "attached", onrejected: "unknown", state: "attached", timeout }],
-          [locator, { onfulfilled: "hidden", onrejected: "unknown", state: "hidden", timeout }],
-          [locator, { onfulfilled: "detached", onrejected: "unknown", state: "detached", timeout }],
-        ],
-        pg,
-      );
-      if (prev_captured_state === last_captured_state) {
-        if (sticky_count >= (escape_sticky_state_after || retry?.times || Infinity) + 1) return callback(new Error(`escaped sticky state [${state}] after ${sticky_count}`));
-        sticky_count += 1;
-      } else {
-        sticky_count = 0;
-      }
-      if (prev_captured_state && state.some((s) => s === last_captured_state)) return callback(null, last_captured_state);
-      prev_captured_state = last_captured_state;
-      return callback(new Error(`trackLocatorSateUntil: (${locator}) expected [${state}] got [${String(last_captured_state)}]`));
-    });
+
+    return this.raceUntilLocator<OF | PWLocatorState, OR | "unknown">(
+      [
+        ...extra_locators,
+        [locator, { onfulfilled: "visible", onrejected: "unknown", state: "visible", timeout }],
+        [locator, { onfulfilled: "attached", onrejected: "unknown", state: "attached", timeout }],
+        [locator, { onfulfilled: "hidden", onrejected: "unknown", state: "hidden", timeout }],
+        [locator, { onfulfilled: "detached", onrejected: "unknown", state: "detached", timeout }],
+      ],
+      retry,
+      (last_captured_state) => {
+        if (prev_captured_state === last_captured_state) {
+          if (sticky_count >= (escape_sticky_state_after || retry?.times || Infinity) + 1) return `escaped sticky state [${state}] after ${sticky_count}`;
+          sticky_count += 1;
+        } else {
+          sticky_count = 0;
+        }
+        if (prev_captured_state && state.some((s) => s === last_captured_state)) return null;
+        prev_captured_state = last_captured_state;
+        return `trackLocatorSateUntil: (${locator}) expected [${state}] got [${String(last_captured_state)}]`;
+      },
+      pg,
+    );
   }
 
   public locator(locator: pw.Locator | string, pg = this.page) {

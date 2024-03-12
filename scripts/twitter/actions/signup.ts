@@ -81,11 +81,9 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
     await email_page.bringToFront();
     const emailData = await $e.get_expected_email(
       async (email) => {
-        console.log({ email });
         if (!("subject" in email)) return "continue";
         else if (!email.subject?.includes("your X verification")) return "jump";
 
-        console.log({ sentAt });
         if (!("sentAt" in email)) return "continue";
         else if (Number(email.sentAt) < sentAt) return "jump";
 
@@ -109,37 +107,56 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
     await $.waitAndClick(`//div[@role="button" and .//span[text()="Next"]]`);
     await $.waitUntilStable();
 
-    const sp_state = await $.raceUntilLocator([[`//input[@name="password"]`, { onfulfilled: "set-password", onrejected: "unknown", timeout: 3000 }]]);
+    const sp_state = await $.raceUntilLocator(
+      [
+        [`//input[@name="password"]`, { onfulfilled: "set-password", onrejected: "unknown" }],
+        [`//div[@role="alertdialog" and .//span[text()="Can't complete your signup right now."]]`, { onfulfilled: "signup-blocked", onrejected: "unknown" }],
+      ],
+      undefined,
+      (s) => !s || s === "unknown",
+    );
     if (!sp_state || sp_state === "unknown") throw `unknown flow: (state=${sp_state})`;
+    if (sp_state === "signup-blocked") throw `signup temporarily blocked`;
 
     await $.waitAndFill(`//input[@name="password"]`, storeDB.password);
     await $.waitAndClick(`//div[@data-testid="LoginForm_Login_Button"]`);
     await $.waitUntilStable();
+    storeDB.status = AccountStatus.PENDING;
 
-    const pp_state = await $.raceUntilLocator([[`//input[@data-testid="fileInput"]`, { onfulfilled: "set-profile-picture", onrejected: "unknown", timeout: 3000 }]]);
+    const pp_state = await $.raceUntilLocator(
+      [[`//input[@data-testid="fileInput"]`, { onfulfilled: "set-profile-picture", onrejected: "unknown" }]],
+      undefined,
+      (s) => !s || s === "unknown",
+    );
     if (!pp_state || pp_state === "unknown") throw `unknown flow: (state=${pp_state})`;
 
-    await $.waitAndClick(`//div[@data-testid="ocfSelectAvatarSkipForNowButton"]`);
+    await $.locator(`//input[@data-testid="fileInput"]`).setInputFiles(await script.utils.opensea.consumeOnePfp());
+    await $.waitAndClick(`//div[@data-testid="applyButton"]`, { timeout: 6000 });
+    await $.waitAndClick(`//div[@data-testid="ocfSelectAvatarNextButton"]`, { timeout: 6000 });
     await $.waitUntilStable();
 
-    const un_state = await $.raceUntilLocator([[`//input[@name="username"]`, { onfulfilled: "set-username", onrejected: "unknown", timeout: 3000 }]]);
+    const un_state = await $.raceUntilLocator([[`//input[@name="username"]`, { onfulfilled: "set-username", onrejected: "unknown" }]], undefined, (s) => !s || s === "unknown");
     if (!un_state || un_state === "unknown") throw `unknown flow: (state=${un_state})`;
 
     storeDB.username = (await $.waitAndGetAttribute(`//input[@name="username"]`, "value")) ?? undefined;
     await $.waitAndClick(`//div[@data-testid="ocfEnterUsernameSkipButton"]`);
     await $.waitUntilStable();
 
-    const tn_state = await $.raceUntilLocator([
-      [`//div[@role="dialog" and @aria-modal="true" and .//span[text()="Turn on notifications"]]`, { onfulfilled: "turn-on-notifications", onrejected: "unknown", timeout: 3000 }],
-    ]);
+    const tn_state = await $.raceUntilLocator(
+      [[`//div[@role="dialog" and @aria-modal="true" and .//span[text()="Turn on notifications"]]`, { onfulfilled: "turn-on-notifications", onrejected: "unknown" }]],
+      undefined,
+      (s) => !s || s === "unknown",
+    );
     if (!tn_state || tn_state === "unknown") throw `unknown flow: (state=${tn_state})`;
 
     await $.waitAndClick(`//div[@role="button" and .//span[text()="Skip for now"]]`);
     await $.waitUntilStable();
 
-    const ws_state = await $.raceUntilLocator([
-      [`//div[@role="dialog" and @aria-modal="true" and .//span[text()="What do you want to see on X?"]]`, { onfulfilled: "set-interests", onrejected: "unknown", timeout: 3000 }],
-    ]);
+    const ws_state = await $.raceUntilLocator(
+      [[`//div[@role="dialog" and @aria-modal="true" and .//span[text()="What do you want to see on X?"]]`, { onfulfilled: "set-interests", onrejected: "unknown" }]],
+      undefined,
+      (s) => !s || s === "unknown",
+    );
     if (!ws_state || ws_state === "unknown") throw `unknown flow: (state=${ws_state})`;
 
     const interests_path = `//div[@aria-label="Timeline: "]//li[@role="listitem"]`;
@@ -160,20 +177,21 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
 
     await $.waitAndClick(`//div[@role="button" and .//span[text()="Next"]]`);
     await $.waitUntilStable();
-    const si2_state = await $.raceUntilLocator([
-      [
-        `//div[@role="dialog" and @aria-modal="true" and .//span[starts-with(text(),"Interests are used")]]`,
-        { onfulfilled: "set-interests-2", onrejected: "unknown", timeout: 3000 },
-      ],
-    ]);
+    const si2_state = await $.raceUntilLocator(
+      [[`//div[@role="dialog" and @aria-modal="true" and .//span[starts-with(text(),"Interests are used")]]`, { onfulfilled: "set-interests-2", onrejected: "unknown" }]],
+      undefined,
+      (s) => !s || s === "unknown",
+    );
     if (si2_state === "set-interests-2") {
       await $.waitAndClick(`//div[@role="button" and .//span[text()="Next"]]`);
       await $.waitUntilStable();
     }
 
-    const dm_state = await $.raceUntilLocator([
-      [`//div[@role="dialog" and @aria-modal="true" and .//span[text()="Don’t miss out"]]`, { onfulfilled: "follow-users", onrejected: "unknown", timeout: 3000 }],
-    ]);
+    const dm_state = await $.raceUntilLocator(
+      [[`//div[@role="dialog" and @aria-modal="true" and .//span[text()="Don’t miss out"]]`, { onfulfilled: "follow-users", onrejected: "unknown" }]],
+      undefined,
+      (s) => !s || s === "unknown",
+    );
     if (!dm_state || dm_state === "unknown") throw `unknown flow: (state=${dm_state})`;
 
     const users_path = `//div[@aria-label="Timeline: "]//div[@data-testid="UserCell"]`;
@@ -188,12 +206,18 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
         ran_idx = faker.number.int({ min: 1, max: users_count });
       } while (selected_users.has(ran_idx));
 
-      await $.waitAndClick(`(${users_path})[${ran_idx}]`);
+      await $.waitAndClick(`(${users_path})[${ran_idx}]//div[@role="button" and .//span[text()="Follow"]]`);
       selected_users.add(ran_idx);
     }
 
+    await page.route("**/*", async (route, request) => {
+      if (/image|media/.test(request.resourceType())) await route.abort("blockedbyclient");
+      else await route.fallback();
+    });
+
     await $.waitAndClick(`//div[@role="button" and .//span[text()="Next"]]`);
     await $.waitUntilStable();
+    storeDB.status = AccountStatus.VERIFIED;
 
     // //div[@role="button" and .//span[text()="Accept all cookies"]]
   } finally {
