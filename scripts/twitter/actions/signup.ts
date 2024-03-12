@@ -1,12 +1,11 @@
-import * as async from "async";
 import { faker } from "@faker-js/faker";
 import { merge, values } from "lodash";
-import { AccountStatus, EmailStatus } from "@prisma/client";
+import { AccountPlatform, AccountStatus, EmailStatus } from "@prisma/client";
 
 import * as script from "@superbees/script";
 
 import Twitter from "../../utils/twitter/src/twitter";
-import Email, { EmailClass } from "../../utils/email";
+import { EmailClass } from "../../utils/email";
 
 async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
   const entity = await opts.prisma.entity.findUniqueOrThrow({ where: { id: opts.entityId || opts.vars.entityId }, include: { email: true } });
@@ -32,11 +31,13 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
   };
 
   try {
+    opts.logger.info(`verify email account status: "${entity.email.username}"`);
     await email_page.bringToFront();
     const email_status = await $e.login(entity.email);
-    if (email_status !== EmailStatus.VERIFIED) throw `entity email is not verified: (state=${email_status})`;
+    if (email_status !== EmailStatus.VERIFIED) throw `email account is not verified: (state=${email_status})`;
     await $e.waitUntilStable();
 
+    opts.logger.info(`navigate to twitter.com`);
     await page.bringToFront();
     await page.goto("https://twitter.com", { waitUntil: "domcontentloaded" });
     await $.waitUntilStable();
@@ -44,6 +45,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
     await $.waitAndClick(`//a[@data-testid="signupButton"]`);
     await $.waitUntilStable();
 
+    opts.logger.info(`fill in base user details`);
     await $.waitFor(`//div[@role="dialog" and @aria-modal="true" and .//span[text()="Create your account"]]`);
     await $.waitAndFill(`//input[@name="name"]`, entity.firstname);
     const state = await $.raceUntilLocator([
@@ -65,19 +67,25 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
     const f_state = await $.raceWithCaptcha([
       [`//div[@role="dialog" and @aria-modal="true" and .//span[contains(text(),"your experience")]]`, { onfulfilled: "customise-experience-dialog", onrejected: "unknown" }],
     ]);
-    if (f_state?.startsWith(`captcha:`)) await $.solveCaptcha(f_state);
-    else if (f_state === "customise-experience-dialog") {
+    if (f_state?.startsWith(`captcha:`)) {
+      opts.logger.info(`solve captcha challenge`);
+      await $.solveCaptcha(f_state);
+    } else if (f_state === "customise-experience-dialog") {
+      opts.logger.info(`skip customising experience step`);
       await $.waitAndClick(`//div[@data-testid="ocfSettingsListNextButton"]`);
       await $.waitUntilStable();
 
       const s_f_state = await $.raceWithCaptcha([[`//input[@name="verfication_code"]`, { onfulfilled: "verification-code-input", onrejected: "unknown" }]]);
-      if (s_f_state?.startsWith(`captcha:`)) await $.solveCaptcha(s_f_state);
-      else if (s_f_state !== `verification-code-input`) throw `unknown flow: (state=${s_f_state}})`;
+      if (s_f_state?.startsWith(`captcha:`)) {
+        opts.logger.info(`solve captcha challenge`);
+        await $.solveCaptcha(s_f_state);
+      } else if (s_f_state !== `verification-code-input`) throw `unknown flow: (state=${s_f_state}})`;
     }
 
     const sentAt = new Date().setUTCSeconds(0, 0);
     const verification_code_input = await $.waitFor(`//input[@name="verfication_code"]`);
 
+    opts.logger.info(`solve email verification challenge`);
     await email_page.bringToFront();
     const emailData = await $e.get_expected_email(
       async (email) => {
@@ -118,17 +126,26 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
     if (!sp_state || sp_state === "unknown") throw `unknown flow: (state=${sp_state})`;
     if (sp_state === "signup-blocked") throw `signup temporarily blocked`;
 
+    opts.logger.info(`set account's password`);
     await $.waitAndFill(`//input[@name="password"]`, storeDB.password);
     await $.waitAndClick(`//div[@data-testid="LoginForm_Login_Button"]`);
     await $.waitUntilStable();
     storeDB.status = AccountStatus.PENDING;
 
+    opts.logger.info(`set account's pfp`);
     const pp_state = await $.raceUntilLocator(
-      [[`//input[@data-testid="fileInput"]`, { onfulfilled: "set-profile-picture", onrejected: "unknown" }]],
+      [
+        [`//input[@data-testid="fileInput"]`, { onfulfilled: "set-profile-picture", onrejected: "unknown" }],
+        [`//form[starts-with(@action,"/account/access")]`, { onfulfilled: "account-is-locked", onrejected: "unknown" }],
+      ],
       undefined,
       (s) => !s || s === "unknown",
     );
     if (!pp_state || pp_state === "unknown") throw `unknown flow: (state=${pp_state})`;
+    if (pp_state === "account-is-locked") {
+      storeDB.status = AccountStatus.BLOCKED;
+      throw `account has been locked`;
+    }
 
     await $.locator(`//input[@data-testid="fileInput"]`).setInputFiles(await script.utils.opensea.consumeOnePfp());
     await $.waitAndClick(`//div[@data-testid="applyButton"]`, { timeout: 6000 });
@@ -137,7 +154,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
 
     const un_state = await $.raceUntilLocator([[`//input[@name="username"]`, { onfulfilled: "set-username", onrejected: "unknown" }]], undefined, (s) => !s || s === "unknown");
     if (!un_state || un_state === "unknown") throw `unknown flow: (state=${un_state})`;
-
+    opts.logger.info(`skip set-custom-username`);
     storeDB.username = (await $.waitAndGetAttribute(`//input[@name="username"]`, "value")) ?? undefined;
     await $.waitAndClick(`//div[@data-testid="ocfEnterUsernameSkipButton"]`);
     await $.waitUntilStable();
@@ -149,6 +166,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
     );
     if (!tn_state || tn_state === "unknown") throw `unknown flow: (state=${tn_state})`;
 
+    opts.logger.info(`skip turn-on-notifications`);
     await $.waitAndClick(`//div[@role="button" and .//span[text()="Skip for now"]]`);
     await $.waitUntilStable();
 
@@ -159,6 +177,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
     );
     if (!ws_state || ws_state === "unknown") throw `unknown flow: (state=${ws_state})`;
 
+    opts.logger.info(`set random interests`);
     const interests_path = `//div[@aria-label="Timeline: "]//li[@role="listitem"]`;
     await $.unThrow($.waitFor(`(${interests_path})[1]`));
     const interests_count = await $.locator(interests_path).count();
@@ -183,10 +202,12 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
       (s) => !s || s === "unknown",
     );
     if (si2_state === "set-interests-2") {
+      opts.logger.info(`skip set-interests-categories`);
       await $.waitAndClick(`//div[@role="button" and .//span[text()="Next"]]`);
       await $.waitUntilStable();
     }
 
+    opts.logger.info(`follow random accounts`);
     const dm_state = await $.raceUntilLocator(
       [[`//div[@role="dialog" and @aria-modal="true" and .//span[text()="Don’t miss out"]]`, { onfulfilled: "follow-users", onrejected: "unknown" }]],
       undefined,
@@ -219,15 +240,33 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
     await $.waitUntilStable();
     storeDB.status = AccountStatus.VERIFIED;
 
-    // //div[@role="button" and .//span[text()="Accept all cookies"]]
+    if (await $.unThrow($.waitAndClick(`//div[@role="button" and .//span[text()="Accept all cookies"]]`), { onfulfilled: true })) {
+      opts.logger.info(`accept all cookies`);
+      await $.waitUntilStable();
+    }
   } finally {
-    // if (storeDB.status === AccountStatus.VERIFIED) {
-    //   await context.close(entity.id);
-    // } else {
-    //   await context.close();
-    // }
-    //
-    // await opts.proxy.releaseProxy("dataimpulse", proxy);
+    // //input[@value="Start"]
+    // captcha
+    // //input[@value="Continue to X"]
+
+    if (storeDB.status === AccountStatus.VERIFIED || storeDB.status === AccountStatus.PENDING) {
+      await opts.prisma.account.create({
+        data: {
+          entityId: entity.id,
+          emailId: entity.emailId,
+          username: storeDB.username ?? "",
+          password: storeDB.password,
+          status: storeDB.status,
+          platform: AccountPlatform.TWITTER,
+        } as any,
+      });
+
+      await context.close(entity.id);
+    } else {
+      await context.close();
+    }
+
+    await opts.proxy.releaseProxy("dataimpulse", proxy);
   }
 }
 

@@ -17,7 +17,6 @@ class Twitter extends script.SuperbeesScript {
         [`iframe#arkoseFrame`, { onfulfilled: "captcha:verify", onrejected: "unknown" }],
         [`iframe#arkose_iframe`, { onfulfilled: "captcha:unlock", onrejected: "unknown" }],
       ]);
-      console.log({ state });
       if (!state || state === "unknown") return callback(`retry (state=${String(state)})`);
       return callback(null, state);
     });

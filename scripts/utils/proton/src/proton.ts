@@ -102,7 +102,7 @@ class Proton extends script.SuperbeesScript {
 
       if (
         options.request_new_code_after &&
-        (!(no_items_increased_counter % script.utils.even(Math.floor(options.request_new_code_after / 4))) || no_items_increased_counter === options.request_new_code_after)
+        (!(no_items_increased_counter % script.utils.even(Math.floor(options.request_new_code_after / 6))) || no_items_increased_counter === options.request_new_code_after)
       ) {
         await this.waitAndClick(`//*[@data-testid="navigation-link:refresh-folder"]`);
       }
