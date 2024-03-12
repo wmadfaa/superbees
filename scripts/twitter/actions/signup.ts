@@ -12,7 +12,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
 
   const proxy = await opts.proxy.requestProxy("dataimpulse", { sticky: true });
   const context = await opts.browser.newContext(entity.id, {
-    driverType: "firefox",
+    driverType: "chromium",
     fingerprintOptions: { screen: { maxWidth: 1440 } },
     browserContextOptions: { proxy: { server: proxy.server } },
   });
@@ -26,6 +26,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
 
   const storeDB = {
     username: undefined as string | undefined,
+    totop_secret_code: undefined as string | undefined,
     password: faker.internet.password({ length: faker.number.int({ min: 12, max: 23 }) }),
     status: AccountStatus.UNKNOWN as AccountStatus,
   };
@@ -64,21 +65,21 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
     await $.waitAndClick(`//div[@role="button" and .//span[text()="Next"]]`);
     await $.waitUntilStable();
 
-    const f_state = await $.raceWithCaptcha([
+    const f_state = await $.race_with_captcha([
       [`//div[@role="dialog" and @aria-modal="true" and .//span[contains(text(),"your experience")]]`, { onfulfilled: "customise-experience-dialog", onrejected: "unknown" }],
     ]);
     if (f_state?.startsWith(`captcha:`)) {
       opts.logger.info(`solve captcha challenge`);
-      await $.solveCaptcha(f_state);
+      await $.solve_captcha(f_state);
     } else if (f_state === "customise-experience-dialog") {
       opts.logger.info(`skip customising experience step`);
       await $.waitAndClick(`//div[@data-testid="ocfSettingsListNextButton"]`);
       await $.waitUntilStable();
 
-      const s_f_state = await $.raceWithCaptcha([[`//input[@name="verfication_code"]`, { onfulfilled: "verification-code-input", onrejected: "unknown" }]]);
+      const s_f_state = await $.race_with_captcha([[`//input[@name="verfication_code"]`, { onfulfilled: "verification-code-input", onrejected: "unknown" }]]);
       if (s_f_state?.startsWith(`captcha:`)) {
         opts.logger.info(`solve captcha challenge`);
-        await $.solveCaptcha(s_f_state);
+        await $.solve_captcha(s_f_state);
       } else if (s_f_state !== `verification-code-input`) throw `unknown flow: (state=${s_f_state}})`;
     }
 
@@ -240,10 +241,12 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
     await $.waitUntilStable();
     storeDB.status = AccountStatus.VERIFIED;
 
-    if (await $.unThrow($.waitAndClick(`//div[@role="button" and .//span[text()="Accept all cookies"]]`), { onfulfilled: true })) {
+    if (await $.unThrow($.waitAndClick(`//div[@role="button" and .//span[text()="Accept all cookies"]]`, { timeout: 600 }), { onfulfilled: true })) {
       opts.logger.info(`accept all cookies`);
       await $.waitUntilStable();
     }
+
+    storeDB.totop_secret_code = await $.add_2fa_auth({ password: storeDB.password });
   } finally {
     // //input[@value="Start"]
     // captcha
@@ -258,6 +261,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
           password: storeDB.password,
           status: storeDB.status,
           platform: AccountPlatform.TWITTER,
+          metadata: storeDB.totop_secret_code ? { totop_secret_code: storeDB.totop_secret_code } : {},
         } as any,
       });
 
