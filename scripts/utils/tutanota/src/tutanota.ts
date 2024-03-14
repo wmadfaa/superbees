@@ -55,6 +55,10 @@ class Tutanota extends script.SuperbeesScript {
       const not_allowed_to_exchange_emails_locator = `//div[@id="dialog-message" and .//*[contains(text(), "Sorry, you are currently not allowed to send or receive emails")]]`;
       const state = await this.raceUntilLocator([
         [`//small[contains(text(), "Invalid login credentials. Please try again.")]`, { onfulfilled: EmailStatus.BLOCKED, onrejected: EmailStatus.UNKNOWN }],
+        [
+          `//small[contains(normalize-space(text()), "The connection to the server was lost. Please try again.")]`,
+          { onfulfilled: EmailStatus.UNKNOWN, onrejected: EmailStatus.UNKNOWN },
+        ],
         [`//div[@id="root" and ./div[@id="mail"] and .${not_allowed_to_exchange_emails_locator}]`, { onfulfilled: EmailStatus.PENDING, onrejected: EmailStatus.UNKNOWN }],
         [`//div[@id="root" and ./div[@id="mail"] and not(.${not_allowed_to_exchange_emails_locator})]`, { onfulfilled: EmailStatus.VERIFIED, onrejected: EmailStatus.UNKNOWN }],
       ]);
@@ -100,6 +104,8 @@ class Tutanota extends script.SuperbeesScript {
     return async.retry<Partial<TutanotaEmailData>, string>(options, async (callback) => {
       if (options.request_new_code_after && no_items_increased_counter >= options.request_new_code_after) {
         await request_new_code?.();
+        await this.waitAndClick(`//button[@href="#"]`);
+        no_items_increased_counter = 0;
       }
 
       if (

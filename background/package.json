@@ -3,11 +3,14 @@
   "version": "0.0.0",
   "main": "index.ts",
   "dependencies": {
-    "@superbees/script": "workspace:*",
-    "@superbees/pm3": "workspace:*",
     "@superbees/browser": "workspace:*",
+    "@superbees/logger": "workspace:*",
+    "@superbees/pm3": "workspace:*",
     "@superbees/proxy": "workspace:*",
+    "@superbees/script": "workspace:*",
     "@superbees/uncaptcha": "workspace:*",
-    "@superbees/logger": "workspace:*"
+    "@types/node-cron": "^3.0.11",
+    "cron-parser": "^4.9.0",
+    "node-cron": "^3.0.3"
   }
 }

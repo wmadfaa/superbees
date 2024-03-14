@@ -1,7 +1,7 @@
 import util from "util";
 
 import * as rx from "rxjs";
-import { isEqual, assign, extend, omit } from "lodash";
+import { assign, extend, omit } from "lodash";
 
 import pm2 from "pm2";
 import logger, { Logger } from "@superbees/logger";
@@ -31,7 +31,7 @@ interface RequestPacket<T> {
 interface ActionProcess<T = unknown> {
   send(data: T, next?: boolean): void;
   complete(): void;
-  error(error: string): void;
+  error(error: string, next?: boolean): void;
 }
 
 export function createResponseStream<T = unknown, R = unknown>(predicate: (value: Response<T, R>) => boolean) {
@@ -98,7 +98,8 @@ export function createIterableResponseStream<T = unknown, R = unknown>(predicate
   };
 }
 
-export function registerAction<I extends object, O>(topic: string, handler: (data: I, process: ActionProcess<O>, logger: Logger & { start(): void; complete(): void }) => void) {
+export type ActionLogger = Logger & { start(): void; complete(): void };
+export function registerAction<I extends object, O>(topic: string, handler: (data: I, process: ActionProcess<O>, logger: ActionLogger) => void) {
   process.on("message", (packet: RequestPacket<I>) => {
     if (packet.topic === topic) {
       const actionProcess: ActionProcess<any> = {
@@ -110,14 +111,12 @@ export function registerAction<I extends object, O>(topic: string, handler: (dat
         },
         complete: () => {
           setImmediate(() => {
-            const payload: ResponseData<O> = { request: packet, next: false };
-            process.send?.({ type: "process:msg", payload });
+            process.send?.({ type: "process:msg", payload: { request: packet, next: false } });
           });
         },
-        error: (error) => {
+        error: (error, next = false) => {
           setImmediate(() => {
-            const payload: ResponseData<O> = { request: packet, error, next: false };
-            process.send?.({ type: "process:msg", payload });
+            process.send?.({ type: "process:msg", payload: { request: packet, error, next } });
           });
         },
       };
@@ -135,9 +134,9 @@ export function registerAction<I extends object, O>(topic: string, handler: (dat
           childLogger.warn(msg, args);
           actionProcess.send(msg);
         },
-        error: (msg: string, ...args: any[]) => {
+        error: (msg: string, next?: boolean, ...args: any[]) => {
           childLogger.error(`${new Error(msg).message}`, args);
-          actionProcess.error(`${new Error(msg).message}`);
+          actionProcess.error(`${new Error(msg).message}`, next);
         },
         complete: () => {
           childLogger.info(`completed`);
@@ -156,7 +155,15 @@ export async function sendRequestToProcess<RS = unknown, RQ = unknown>(proc_id: 
 
   return {
     request: packet,
-    createResponseStream: () => createResponseStream<RS, RQ>((m) => isEqual(m.raw.payload.request, packet)),
-    createIterableResponseStream: () => createIterableResponseStream<RS, RQ>((m) => isEqual(m.raw.payload.request, packet)),
+    createResponseStream: () =>
+      createResponseStream<RS, RQ>((m) => {
+        // @ts-ignore
+        return m.raw.payload.request["__rq_uuid"] === packet["__rq_uuid"];
+      }),
+    createIterableResponseStream: () =>
+      createIterableResponseStream<RS, RQ>((m) => {
+        // @ts-ignore
+        return m.raw.payload.request["__rq_uuid"] === packet["__rq_uuid"];
+      }),
   };
 }

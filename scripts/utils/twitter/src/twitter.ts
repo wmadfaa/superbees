@@ -81,7 +81,14 @@ class Twitter extends script.SuperbeesScript {
   }
 
   async add_2fa_auth(account: Pick<Account, "password">) {
-    await this.page.goto(`https://twitter.com/settings/account/login_verification`);
+    await async.retry(3, async (callback) => {
+      try {
+        await this.page.goto(`https://twitter.com/settings/account/login_verification`);
+        return callback(null);
+      } catch (e) {
+        return callback(e as any);
+      }
+    });
     await this.waitUntilStable();
 
     await this.waitAndClick(`//label[.//span[contains(text(), 'Authentication app')]]`);

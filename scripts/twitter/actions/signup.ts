@@ -252,7 +252,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
     // captcha
     // //input[@value="Continue to X"]
 
-    if (storeDB.status === AccountStatus.VERIFIED || storeDB.status === AccountStatus.PENDING) {
+    if (storeDB.status !== AccountStatus.UNKNOWN) {
       await opts.prisma.account.create({
         data: {
           entityId: entity.id,

@@ -25,6 +25,8 @@ model Entity {
   accounts Account[]
   airdrops Airdrop[]
 
+  tasks EntityTask[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -140,4 +142,42 @@ model Airdrop {
   updatedAt DateTime @updatedAt
 
   @@unique([entityId, name])
+}
+
+enum TaskState {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELED
+}
+
+model Task {
+  id String @id @default(cuid())
+
+  payload Json
+  state   TaskState @default(ACTIVE)
+
+  entities EntityTask[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum EntityTaskState {
+  PENDING
+  RUNNING
+  FAILED
+  SUCCEEDED
+}
+
+model EntityTask {
+  entityId String
+  entity   Entity @relation(fields: [entityId], references: [id])
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id])
+
+  state EntityTaskState
+
+  @@id([entityId, taskId])
 }

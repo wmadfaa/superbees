@@ -98,6 +98,8 @@ class Proton extends script.SuperbeesScript {
     return async.retry<Partial<ProtonEmailData>, string>(options, async (callback) => {
       if (options.request_new_code_after && no_items_increased_counter >= options.request_new_code_after) {
         await request_new_code?.();
+        await this.waitAndClick(`//*[@data-testid="navigation-link:refresh-folder"]`);
+        no_items_increased_counter = 0;
       }
 
       if (
