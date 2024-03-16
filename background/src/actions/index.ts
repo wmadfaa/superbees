@@ -1,3 +1,3 @@
 export * from "./script/run";
 
-export * from "./task/create";
+export * from "./generator/create";

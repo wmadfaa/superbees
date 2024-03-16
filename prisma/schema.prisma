@@ -144,6 +144,28 @@ model Airdrop {
   @@unique([entityId, name])
 }
 
+enum GeneratorState {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELED
+}
+
+model Generator {
+  id String @id @default(cuid())
+
+  payload Json
+  state   GeneratorState @default(ACTIVE)
+
+  pending_runs   Int @default(0)
+  running_runs   Int @default(0)
+  completed_runs Int @default(0)
+  failed_runs    Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 enum TaskState {
   ACTIVE
   PAUSED

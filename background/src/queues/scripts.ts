@@ -3,36 +3,34 @@ import { ActionLogger } from "@superbees/pm3";
 import { SuperbeesScriptFunctionOptions } from "@superbees/script";
 import { runScript, runScriptUtil } from "@superbees/script/src/run";
 
-import db, { EntityTaskState } from "../prisma-client";
+import db, { EntityTaskState, Generator } from "../prisma-client";
+import Obj from "../obj";
+import Logger from "@superbees/logger";
+import logger from "@superbees/logger";
 
 export interface ScriptQueueTask {
-  entityId: string;
-  taskId: string;
+  generatorId: string;
   cursor: number;
-
   script_name: string;
   script_vars?: any;
-  script_logger: ActionLogger;
-
   onDone(): Promise<void>;
 }
-export function registerScriptsQueue<T = unknown>(options: Omit<SuperbeesScriptFunctionOptions<T>, "vars" | "util" | "logger">) {
+export function registerScriptsQueue<T = unknown>(generators: Map<string, Obj<Generator>>, options: Omit<SuperbeesScriptFunctionOptions<T>, "vars" | "util" | "logger">) {
   return async.queue<ScriptQueueTask>(async (item, callback) => {
-    const updateState = async (state: EntityTaskState) => {
-      await db.entityTask.update({
-        where: { entityId_taskId: { taskId: item.taskId, entityId: item.entityId } },
-        data: { state },
-      });
-    };
-
+    const generator = generators.get(item.generatorId)!;
     try {
-      await updateState(EntityTaskState.RUNNING);
-      await runScript(item.script_name, { ...options, util: runScriptUtil, vars: item.script_vars, logger: item.script_logger, entityId: item.entityId });
-      await updateState(EntityTaskState.SUCCEEDED);
+      generator.ref.pending_runs -= 1;
+      generator.ref.running_runs += 1;
+      await runScript(item.script_name, { ...options, util: runScriptUtil, vars: item.script_vars, logger: Logger });
+
+      generator.ref.running_runs -= 1;
+      generator.ref.completed_runs += 1;
+
       return callback(null);
     } catch (reason: any) {
-      await updateState(EntityTaskState.FAILED);
-      item.script_logger.error(reason, true);
+      logger.error(reason);
+      generator.ref.running_runs -= 1;
+      generator.ref.failed_runs += 1;
       return callback(reason);
     } finally {
       await item.onDone();
