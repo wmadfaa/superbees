@@ -27,30 +27,7 @@ export function handleOnTaskCreate(
 ) {
   pm3.registerAction<HandleOnTaskCreateArgs, unknown>("task:create", async (args) => {
     const task = await db.task.create({ data: { payload: { ...args } }, include: { entities: true } });
-    const task_obj = new Obj(task);
-
-    const observer = debounce(async (args: ObjSetArgs<TaskWithEntities>) => {
-      const [target, p, newValue] = cloneDeep(args);
-      Reflect.set(target, p, newValue);
-      if (p === "state") await db.task.update({ where: { id: task.id }, data: { state: target.state } });
-      if (p === "entities") {
-        const current = await db.entityTask.findMany({ where: { taskId: task.id } });
-        const next = target.entities;
-
-        const deleted = differenceBy(current, next, "entityId");
-        await db.entityTask.deleteMany({ where: { taskId: task.id, entityId: { in: deleted.map((e) => e.entityId) } } });
-
-        const updated = intersectionBy(current, next, "entityId");
-        await db.entityTask.updateMany({ data: updated });
-
-        const created = differenceBy(next, current, "entityId");
-        await db.task.update({ where: { id: task.id }, data: { entities: { createMany: { data: created } } } });
-      }
-    });
-
-    task_obj.subscribe("set", observer);
-    tasks.set(task.id, task_obj);
-    scheduledTasks.set(task.id, createTask(task_obj, args, queue));
+    await deployTask(task, tasks, scheduledTasks, args, queue);
   });
 }
 
@@ -109,4 +86,50 @@ export function createTask(task: Obj<TaskWithEntities>, args: HandleOnTaskCreate
   });
 
   return create(scheduledTask, { stop: stop(scheduledTask) });
+}
+
+export async function reDeployTasks(
+  tasks: Map<string, Obj<TaskWithEntities>>,
+  scheduledTasks: Map<string, cron.ScheduledTask>,
+  queue: async.QueueObject<ScriptsQueueItem<ScriptHandlers.TASK>>,
+) {
+  const tasks_data = await db.task.findMany({ where: { state: { in: [TaskState.ACTIVE, TaskState.PAUSED] } }, include: { entities: true } });
+
+  for (const task of tasks_data) {
+    const args = JSON.parse(JSON.stringify(task.payload));
+    await deployTask(task, tasks, scheduledTasks, args, queue);
+  }
+}
+
+async function deployTask(
+  task: TaskWithEntities,
+  tasks: Map<string, Obj<TaskWithEntities>>,
+  scheduledTasks: Map<string, cron.ScheduledTask>,
+  args: HandleOnTaskCreateArgs,
+  queue: async.QueueObject<ScriptsQueueItem<ScriptHandlers.TASK>>,
+) {
+  const task_obj = new Obj(task);
+
+  const observer = debounce(async (args: ObjSetArgs<TaskWithEntities>) => {
+    const [target, p, newValue] = cloneDeep(args);
+    Reflect.set(target, p, newValue);
+    if (p === "state") await db.task.update({ where: { id: task.id }, data: { state: target.state } });
+    if (p === "entities") {
+      const current = await db.entityTask.findMany({ where: { taskId: task.id } });
+      const next = target.entities;
+
+      const deleted = differenceBy(current, next, "entityId");
+      await db.entityTask.deleteMany({ where: { taskId: task.id, entityId: { in: deleted.map((e) => e.entityId) } } });
+
+      const updated = intersectionBy(current, next, "entityId");
+      await db.entityTask.updateMany({ data: updated });
+
+      const created = differenceBy(next, current, "entityId");
+      await db.task.update({ where: { id: task.id }, data: { entities: { createMany: { data: created } } } });
+    }
+  });
+
+  task_obj.subscribe("set", observer);
+  tasks.set(task.id, task_obj);
+  scheduledTasks.set(task.id, createTask(task_obj, args, queue));
 }

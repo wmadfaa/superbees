@@ -17,12 +17,12 @@ interface MapTypes2HandlerItems {
 
 export type ScriptsQueueItem<T extends ScriptHandlers> = MapTypes2HandlerItems[T];
 
-export function registerScriptsQueue<T extends ScriptHandlers, I extends ScriptsQueueItem<T>>(opts: ExecutionQueueHandlerArgs) {
-  return async.queue<I>(async (item, callback) => {
+export function registerScriptsQueue(opts: ExecutionQueueHandlerArgs) {
+  return async.queue<any>(async (item, callback) => {
     // @ts-expect-error
     await mapTypes2Handlers[item.type](item, opts).then(
       () => callback(null),
-      (reason) => callback(reason),
+      (reason: any) => callback(reason),
     );
   });
 }

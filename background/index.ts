@@ -17,19 +17,15 @@ const generators = new Map<string, Obj<Generator>>();
 const tasks = new Map<string, Obj<TaskWithEntities>>();
 
 (async () => {
-  const browser = new SuperbeesBrowser({
-    // chromium: { headless: false },
-    // firefox: { headless: false },
-  });
+  const browser = new SuperbeesBrowser();
   const uncaptcha = new SuperbeesUncaptcha(credentials["captcha-solvers"]);
   const proxy = new SuperbeesProxy(credentials["proxy-services"]);
 
   const queue = queues.registerScriptsQueue({ tasks, generators, browser, uncaptcha, proxy, prisma: db });
+  await actions.reDeployGenerators(generators, scheduledTasks, queue);
+  await actions.reDeployTasks(tasks, scheduledTasks, queue);
 
-  // @ts-expect-error
   actions.handleOnGeneratorCreate(generators, scheduledTasks, queue);
-
-  // @ts-expect-error
   actions.handleOnTaskCreate(tasks, scheduledTasks, queue);
 
   actions.handleOnScriptRun({ browser, uncaptcha, proxy, prisma: db });

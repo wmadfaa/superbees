@@ -26,18 +26,7 @@ export function handleOnGeneratorCreate(
 ) {
   pm3.registerAction<HandleOnGeneratorCreateArgs, unknown>("generator:create", async (args) => {
     const generator = await db.generator.create({ data: { payload: { ...args } } });
-    const generator_obj = new Obj(generator);
-
-    const observer = debounce(async (args: ObjSetArgs<Generator>) => {
-      const [target, p, newValue] = cloneDeep(args);
-      Reflect.set(target, p, newValue);
-      const { state, pending_runs, running_runs, completed_runs, failed_runs } = target;
-      await db.generator.update({ where: { id: generator.id }, data: { state, pending_runs, running_runs, completed_runs, failed_runs } });
-    });
-
-    generator_obj.subscribe("set", observer);
-    generators.set(generator.id, generator_obj);
-    scheduledTasks.set(generator.id, createGenerator(generator_obj, args, queue));
+    await deployGeneratorScript(generator, generators, scheduledTasks, args, queue);
   });
 }
 
@@ -88,4 +77,38 @@ export function createGenerator(generator: Obj<Generator>, args: HandleOnGenerat
   });
 
   return create(scheduledTask, { stop: stop(scheduledTask) });
+}
+
+export async function reDeployGenerators(
+  generators: Map<string, Obj<Generator>>,
+  scheduledTasks: Map<string, cron.ScheduledTask>,
+  queue: async.QueueObject<ScriptsQueueItem<ScriptHandlers.GENERATOR>>,
+) {
+  const generators_data = await db.generator.findMany({ where: { state: { in: [GeneratorState.ACTIVE, GeneratorState.PAUSED] } } });
+
+  for (const generator of generators_data) {
+    const args = JSON.parse(JSON.stringify(generator.payload));
+    await deployGeneratorScript(generator, generators, scheduledTasks, args, queue);
+  }
+}
+
+async function deployGeneratorScript(
+  generator: Generator,
+  generators: Map<string, Obj<Generator>>,
+  scheduledTasks: Map<string, cron.ScheduledTask>,
+  args: HandleOnGeneratorCreateArgs,
+  queue: async.QueueObject<ScriptsQueueItem<ScriptHandlers.GENERATOR>>,
+) {
+  const generator_obj = new Obj(generator);
+
+  const observer = debounce(async (args: ObjSetArgs<Generator>) => {
+    const [target, p, newValue] = cloneDeep(args);
+    Reflect.set(target, p, newValue);
+    const { state, pending_runs, running_runs, completed_runs, failed_runs } = target;
+    await db.generator.update({ where: { id: generator.id }, data: { state, pending_runs, running_runs, completed_runs, failed_runs } });
+  });
+
+  generator_obj.subscribe("set", observer);
+  generators.set(generator.id, generator_obj);
+  scheduledTasks.set(generator.id, createGenerator(generator_obj, args, queue));
 }
