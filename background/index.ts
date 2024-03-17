@@ -17,7 +17,9 @@ const generators = new Map<string, Obj<Generator>>();
 const tasks = new Map<string, Obj<TaskWithEntities>>();
 
 (async () => {
-  const browser = new SuperbeesBrowser();
+  const browser = new SuperbeesBrowser({
+    chromium: { headless: false, args: ["--headless=new"] },
+  });
   const uncaptcha = new SuperbeesUncaptcha(credentials["captcha-solvers"]);
   const proxy = new SuperbeesProxy(credentials["proxy-services"]);
 

@@ -85,7 +85,7 @@ export async function reDeployGenerators(
   queue: async.QueueObject<ScriptsQueueItem<ScriptHandlers.GENERATOR>>,
 ) {
   const generators_data = await db.generator.findMany({ where: { state: { in: [GeneratorState.ACTIVE, GeneratorState.PAUSED] } } });
-
+  console.log({ generators_data });
   for (const generator of generators_data) {
     const args = JSON.parse(JSON.stringify(generator.payload));
     await deployGeneratorScript(generator, generators, scheduledTasks, args, queue);

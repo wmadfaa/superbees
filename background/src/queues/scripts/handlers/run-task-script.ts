@@ -28,7 +28,7 @@ async function runTaskScript(item: RunTaskScriptQueueItem, opts: ExecutionQueueH
 
   try {
     updateTaskEntityState(EntityTaskState.RUNNING);
-    await runScript(item.script_name, { ...script_opts, util: runScriptUtil, vars: item.script_vars, logger });
+    await runScript(item.script_name, { ...script_opts, entityId: item.entityId, util: runScriptUtil, vars: item.script_vars, logger });
     updateTaskEntityState(EntityTaskState.SUCCEEDED);
   } catch (reason: any) {
     updateTaskEntityState(EntityTaskState.FAILED);

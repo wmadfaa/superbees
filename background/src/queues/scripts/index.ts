@@ -24,7 +24,7 @@ export function registerScriptsQueue(opts: ExecutionQueueHandlerArgs) {
       () => callback(null),
       (reason: any) => callback(reason),
     );
-  });
+  }, 10);
 }
 
 export * from "./types";

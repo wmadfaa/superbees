@@ -1,8 +1,8 @@
-import type * as async from "async";
+import * as async from "async";
 
 import * as pm3 from "@superbees/pm3";
 import { faker } from "@faker-js/faker";
-import { cloneDeep, create, debounce, differenceBy, intersectionBy, isEmpty, isNumber, shuffle } from "lodash";
+import { cloneDeep, create, debounce, differenceBy, entries, groupBy, intersectionBy, isEmpty, isNumber, omit, shuffle, throttle } from "lodash";
 
 import cron from "node-cron";
 import cParser from "cron-parser";
@@ -15,7 +15,7 @@ export interface HandleOnTaskCreateArgs {
   script: string;
   vars: string;
   agents: number;
-  max_runs: number;
+  runs: number;
   cron: string;
   filter?: string;
 }
@@ -55,7 +55,7 @@ export function createTask(task: Obj<TaskWithEntities>, args: HandleOnTaskCreate
     if (!entities.length) return;
 
     const cursor = task.ref.entities.length;
-    const max_allowed_agents = Math.min(args.agents, Math.max(0, args.max_runs - cursor));
+    const max_allowed_agents = Math.min(args.agents, Math.max(0, args.runs - cursor));
     if (max_allowed_agents < 1) return;
     entities = shuffle(entities).slice(0, max_allowed_agents);
 
@@ -69,9 +69,9 @@ export function createTask(task: Obj<TaskWithEntities>, args: HandleOnTaskCreate
     }
 
     const onDone = async () => {
-      if (!isNumber(args.max_runs)) return;
+      if (!isNumber(args.runs)) return;
       const executed_tasks_count = task.ref.entities.filter((v) => [EntityTaskState.SUCCEEDED, EntityTaskState.FAILED].some((s) => s === v.state)).length;
-      if (args.max_runs <= executed_tasks_count) {
+      if (args.runs <= executed_tasks_count) {
         stop(scheduledTask);
         task.ref.state = TaskState.COMPLETED;
       }
@@ -110,26 +110,39 @@ async function deployTask(
 ) {
   const task_obj = new Obj(task);
 
-  const observer = debounce(async (args: ObjSetArgs<TaskWithEntities>) => {
-    const [target, p, newValue] = cloneDeep(args);
-    Reflect.set(target, p, newValue);
-    if (p === "state") await db.task.update({ where: { id: task.id }, data: { state: target.state } });
-    if (p === "entities") {
-      const current = await db.entityTask.findMany({ where: { taskId: task.id } });
-      const next = target.entities;
+  const db_queue = async.queue(async ({ item }: { item: ObjSetArgs<TaskWithEntities> }, callback) => {
+    try {
+      const [target, p, newValue] = cloneDeep(item);
+      console.table([Object.fromEntries(entries(groupBy(target.entities, "state")).map(([k, v]) => [k, v.length]))]);
 
-      const deleted = differenceBy(current, next, "entityId");
-      await db.entityTask.deleteMany({ where: { taskId: task.id, entityId: { in: deleted.map((e) => e.entityId) } } });
+      Reflect.set(target, p, newValue);
+      if (p === "state") await db.task.update({ where: { id: task.id }, data: { state: target.state } });
+      if (p === "entities") {
+        const current = await db.entityTask.findMany({ where: { taskId: task.id } });
+        const next = target.entities;
 
-      const updated = intersectionBy(current, next, "entityId");
-      await db.entityTask.updateMany({ data: updated });
+        const deleted = differenceBy(current, next, "entityId");
+        if (deleted.length) await db.entityTask.deleteMany({ where: { taskId: task.id, entityId: { in: deleted.map((e) => e.entityId) } } });
 
-      const created = differenceBy(next, current, "entityId");
-      await db.task.update({ where: { id: task.id }, data: { entities: { createMany: { data: created } } } });
+        const updated = intersectionBy(next, current, "entityId");
+        if (updated.length) {
+          await db.$transaction(async (prisma) => {
+            for (const r of updated) {
+              await prisma.entityTask.update({ where: { entityId_taskId: { taskId: r.taskId, entityId: r.entityId } }, data: { state: r.state } });
+            }
+          });
+        }
+
+        const created = differenceBy(next, current, "entityId").map((o) => omit(o, "taskId"));
+        if (created.length) await db.task.update({ where: { id: task.id }, data: { entities: { createMany: { data: created } } } });
+      }
+      return callback(null);
+    } catch (e: any) {
+      return callback(e);
     }
   });
 
-  task_obj.subscribe("set", observer);
+  task_obj.subscribe("set", (item) => db_queue.push({ item }));
   tasks.set(task.id, task_obj);
   scheduledTasks.set(task.id, createTask(task_obj, args, queue));
 }
