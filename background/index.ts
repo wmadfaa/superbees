@@ -16,18 +16,23 @@ const scheduledTasks = new Map<string, cron.ScheduledTask>();
 const generators = new Map<string, Obj<Generator>>();
 const tasks = new Map<string, Obj<TaskWithEntities>>();
 
-(async () => {
-  const browser = new SuperbeesBrowser({
-    chromium: { headless: false, args: ["--headless=new"] },
-  });
-  const uncaptcha = new SuperbeesUncaptcha(credentials["captcha-solvers"]);
-  const proxy = new SuperbeesProxy(credentials["proxy-services"]);
+const browser = new SuperbeesBrowser({
+  chromium: { headless: false, args: ["--headless=new"] },
+});
+const uncaptcha = new SuperbeesUncaptcha(credentials["captcha-solvers"]);
+const proxy = new SuperbeesProxy(credentials["proxy-services"]);
 
+(async () => {
   const queue = queues.registerScriptsQueue({ tasks, generators, browser, uncaptcha, proxy, prisma: db });
   await actions.reDeployGenerators(generators, scheduledTasks, queue);
   await actions.reDeployTasks(tasks, scheduledTasks, queue);
 
   actions.handleOnGeneratorCreate(generators, scheduledTasks, queue);
+  actions.handleOnGeneratorTrack(generators);
+  actions.handleOnGeneratorList(generators);
+  actions.handleOnGeneratorPause(generators);
+  actions.handleOnGeneratorComplete(generators);
+
   actions.handleOnTaskCreate(tasks, scheduledTasks, queue);
 
   actions.handleOnScriptRun({ browser, uncaptcha, proxy, prisma: db });
