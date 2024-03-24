@@ -34,6 +34,10 @@ const proxy = new SuperbeesProxy(credentials["proxy-services"]);
   actions.handleOnGeneratorComplete(generators);
 
   actions.handleOnTaskCreate(tasks, scheduledTasks, queue);
+  actions.handleOnTaskTrack(tasks);
+  actions.handleOnTaskList(tasks);
+  actions.handleOnTaskPause(tasks);
+  actions.handleOnTaskComplete(tasks);
 
   actions.handleOnScriptRun({ browser, uncaptcha, proxy, prisma: db });
 

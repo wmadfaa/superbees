@@ -1,6 +1,6 @@
 #!/usr/bin/env ts-node
 
-import yargs, { command } from "yargs";
+import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
 import startCommand from "./commands/start";
@@ -13,11 +13,19 @@ import generatorPauseCommand from "./commands/generator/pause";
 import generatorListCommand from "./commands/generator/list";
 
 import taskCreateCommand from "./commands/task/create";
+import taskCompleteCommand from "./commands/task/complete";
+import taskTrackCommand from "./commands/task/track";
+import taskPauseCommand from "./commands/task/pause";
+import taskListCommand from "./commands/task/list";
 
 yargs(hideBin(process.argv))
   .command(startCommand)
   .command(scriptRunCommand)
   .command(taskCreateCommand)
+  .command(taskCompleteCommand)
+  .command(taskTrackCommand)
+  .command(taskPauseCommand)
+  .command(taskListCommand)
   .command(generatorCreateCommand)
   .command(generatorCompleteCommand)
   .command(generatorTrackCommand)

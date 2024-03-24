@@ -7,3 +7,7 @@ export * from "./generator/pause";
 export * from "./generator/complete";
 
 export * from "./task/create";
+export * from "./task/track";
+export * from "./task/list";
+export * from "./task/pause";
+export * from "./task/complete";

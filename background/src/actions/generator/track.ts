@@ -1,5 +1,5 @@
 import Obj, { ObjSetArgs } from "../../obj";
-import db, { Generator, GeneratorState } from "../../prisma-client";
+import { Generator, GeneratorState } from "../../prisma-client";
 
 import * as pm3 from "@superbees/pm3";
 import { cloneDeep, debounce, pick } from "lodash";
