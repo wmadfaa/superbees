@@ -3,7 +3,12 @@ import { authenticator } from "otplib";
 
 import * as script from "@superbees/script";
 import { Primitive } from "@superbees/script";
-import { Account } from "@prisma/client";
+import { Account, AccountStatus, Email, EmailStatus } from "@prisma/client";
+import { merge } from "lodash";
+import { EmailClass } from "../../email";
+
+type LoginFlow = "unknown" | "cookies" | "credentials" | "unlock";
+
 class Twitter extends script.SuperbeesScript {
   constructor(
     protected readonly page: script.InjectedPage,
@@ -78,6 +83,141 @@ class Twitter extends script.SuperbeesScript {
     );
     await this.waitUntilStable();
     await this.waitFor(selector, { state: "hidden" });
+  }
+
+  private async get_login_flow({ retry_times = 3, verify_times = 3 }: { retry_times?: number; verify_times?: number } = {}, pg = this.page, controlled = true) {
+    return async.retry<LoginFlow | undefined>(retry_times, async (callback) => {
+      try {
+        let flow = await this.raceUntilUrl([
+          [/^https:\/\/twitter\.com\/home.*/, { waitUntil: "load", onfulfilled: "cookies", onrejected: "unknown" }],
+          [/^https:\/\/twitter\.com\/i\/flow\/login.*/, { waitUntil: "load", onfulfilled: "credentials", onrejected: "unknown" }],
+          [/^https:\/\/twitter\.com\/account\/access.*/, { waitUntil: "load", onfulfilled: "unlock", onrejected: "unknown" }],
+        ]);
+        if (!controlled || !verify_times) return callback(null, flow);
+
+        for (let i = 0; i < verify_times; i++) {
+          await script.utils.sleep(3000 / i + 1);
+          const [, r] = await this.unThrow(this.get_login_flow({ retry_times, verify_times }, pg, false));
+          flow = r ?? "unknown";
+        }
+
+        return callback(null, flow);
+      } catch (e: any) {
+        return callback(e);
+      }
+    });
+  }
+
+  private async unlock_account(account: Partial<Account>, pg = this.page) {
+    const [isLocked] = await this.unThrow(pg.waitForURL(/^https:\/\/twitter\.com\/account\/access.*/, { waitUntil: "load" }), { onfulfilled: true, onrejected: false });
+    if (!isLocked) throw `Account ("${account.username}") is not locked`;
+
+    const start_btn_selector = `input[type="submit"][value="Start"]`;
+    let [, start_btn] = await this.unThrow(this.waitFor(start_btn_selector));
+
+    if (!start_btn) {
+      await this.unThrow(pg.reload());
+      await this.waitUntilStable();
+      start_btn = this.locator(start_btn_selector);
+    }
+
+    await this.waitAndClick(start_btn);
+    await this.waitUntilStable();
+
+    const captcha_or_start = await this.race_with_captcha([[start_btn_selector, { onfulfilled: "start-btn", onrejected: "unknown" }]]);
+    if (!captcha_or_start || captcha_or_start === "unknown") throw `couldn't find any arkoseFrame`;
+
+    await async.retry(5, async (callback) => {
+      return this.solve_captcha(captcha_or_start).then(
+        () => callback(null),
+        (e) => callback(e),
+      );
+    });
+    await this.waitUntilStable();
+
+    const continue_btn_selector = `input[value="Continue to X"]`;
+    const captcha_or_continue = await this.race_with_captcha([[continue_btn_selector, { onfulfilled: "continue-btn", onrejected: "unknown" }]]);
+    if (captcha_or_continue !== "continue-btn") throw `failed to solve the captcha`;
+
+    await this.waitAndClick(continue_btn_selector);
+    await this.waitUntilStable();
+  }
+
+  async login(account: Partial<Account & { email: Email }>, pg = this.page): Promise<AccountStatus> {
+    let status = account.status || AccountStatus.UNKNOWN;
+
+    await pg.goto(`https://twitter.com/home`);
+    await this.waitUntilStable(undefined, pg);
+    let flow = await this.get_login_flow(undefined, pg);
+    if (!flow || flow === "unknown") throw `unknown login flow (status=${flow})`;
+    if (/credentials|unlock/.test(flow)) status = AccountStatus.UNKNOWN;
+    if (flow === "unlock") await this.unlock_account(account, pg);
+    if (flow === "credentials") {
+      await this.waitAndFill(`input[name="text"]`, account.username || account.email!.username);
+      await this.waitAndClick(`div[role="button"] >> text="Next"`);
+      await this.waitUntilStable();
+
+      const credentials_flow = await this.race_with_captcha([[`input[name="password"]`, { onfulfilled: "pwd-input", onrejected: "unknown" }]]);
+      if (!credentials_flow || credentials_flow === "unknown") throw `unknown login with credentials flow (status=${flow})`;
+      if (credentials_flow.includes("captcha")) await this.solve_captcha(credentials_flow);
+      await this.waitAndFill(`input[name="password"]`, account.password!);
+      await this.waitAndClick(`div[role="button"][data-testid="LoginForm_Login_Button"]`);
+
+      await this.waitUntilStable();
+
+      flow = await this.get_login_flow(undefined, pg);
+      if (flow === "unlock") await this.unlock_account(account, pg);
+    }
+
+    const state = await this.raceUntilLocator([
+      [pg.getByRole("dialog", { name: "Enter your verification code" }), { onfulfilled: "totop", onrejected: "unknown" }],
+      [pg.getByRole("dialog", { name: "Help us keep your account safe." }), { onfulfilled: "email", onrejected: "unknown" }],
+      [pg.getByRole("dialog", { name: "Check your email" }), { onfulfilled: "enter:email-code", onrejected: "unknown" }],
+    ]);
+
+    if (state === "totop") {
+      await this.waitAndFill(`input[name="text"][data-testid="ocfEnterTextTextInput"]`, authenticator.generate((account.metadata as any).totop_secret_code));
+      await this.waitAndClick(`div[role="button"][data-testid="ocfEnterTextNextButton"]`);
+      await this.waitUntilStable();
+    } else if (state === "email") {
+      await this.waitAndFill(`input[name="text"][data-testid="ocfEnterTextTextInput"]`, account.email!.username);
+      await this.waitAndClick(`div[role="button"][data-testid="ocfEnterTextNextButton"]`);
+      await this.waitUntilStable();
+    }
+
+    if (state === "email" || state === "enter:email-code") {
+      const sentAt = new Date().setUTCSeconds(0, 0);
+      const verification_code_input = await this.waitFor(`input[name="text"][data-testid="ocfEnterTextTextInput"]`);
+      const email_page = (await pg.context().newPage()) as script.InjectedPage;
+      const $e: EmailClass = await this.opts.util("email", [email_page, merge(this.opts, { vars: { platform: account.email?.platform } })]);
+      const email_status = await $e.login(account.email!);
+      if (email_status !== EmailStatus.VERIFIED) throw `email account is not verified: (state=${email_status})`;
+
+      const email_data = await $e.get_expected_email(async (email) => {
+        if (!("subject" in email)) return "continue";
+        else if (!email.subject?.includes("Your Twitter confirmation code is")) return "jump";
+
+        if (!("sentAt" in email)) return "continue";
+        else if (Number(email.sentAt) < sentAt) return "jump";
+
+        return "take";
+      });
+
+      const verification_code = email_data.subject?.match(/.* code is (\w+)$/)?.[1];
+      if (!verification_code) throw `verification code not found in: ${JSON.stringify(email_data)}`;
+
+      await pg.bringToFront();
+      await this.waitAndFill(verification_code_input, verification_code);
+      await this.waitAndClick(`div[role="button"][data-testid="ocfEnterTextNextButton"]`);
+      await this.waitUntilStable();
+    }
+
+    flow = await this.get_login_flow();
+    if (!flow || flow === "unknown") throw `unknown login flow (status=${flow})`;
+    if (flow === "unlock") await this.unlock_account(account, pg);
+    status = AccountStatus.VERIFIED;
+
+    return status;
   }
 
   async add_2fa_auth(account: Pick<Account, "password">) {

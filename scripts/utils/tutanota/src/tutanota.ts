@@ -22,7 +22,7 @@ class Tutanota extends script.SuperbeesScript {
 
   async go_to_root_if_needed() {
     await this.waitUntilStable();
-    if (!(await this.unThrow(this.waitFor(`//div[@id="login-view"]`, { timeout: 100 }), { onfulfilled: true, onrejected: false }))) {
+    if (!(await this.unThrow(this.waitFor(`//div[@id="login-view"]`, { timeout: 100 }), { onfulfilled: true, onrejected: false }))[0]) {
       await this.page.goto("https://app.tuta.com");
       await this.waitUntilStable();
       return true;

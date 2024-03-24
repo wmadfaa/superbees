@@ -248,10 +248,6 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<any>) {
 
     storeDB.totop_secret_code = await $.add_2fa_auth({ password: storeDB.password });
   } finally {
-    // //input[@value="Start"]
-    // captcha
-    // //input[@value="Continue to X"]
-
     if (storeDB.status !== AccountStatus.UNKNOWN) {
       await opts.prisma.account.create({
         data: {

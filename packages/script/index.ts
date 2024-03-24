@@ -25,10 +25,25 @@ export interface TrackLocatorSateUntilOptions<OF extends Primitive, OR extends P
 export class SuperbeesScript {
   constructor(protected page: InjectedPage) {}
 
-  public async unThrow<T, OF extends Primitive, OR extends Primitive>(promise: Promise<T>, msg: { onfulfilled?: OF; onrejected?: OR } = {}) {
-    return promise.then(
-      (r) => msg.onfulfilled,
-      (e) => msg.onrejected,
+  public async unThrow<OF, OR>(p: Promise<OF>): Promise<[OR | null, OF | null]>;
+  public async unThrow<OF, OR>(p: Promise<unknown>, opts: { onfulfilled: OF }): Promise<[OR | null, OF | null]>;
+  public async unThrow<OF, OR>(p: Promise<unknown>, opts: { onfulfilled: OF; onrejected: OR }): Promise<[OR | null, OF | null]>;
+  public async unThrow<OF, OR>(p: Promise<OF>, opts?: { onfulfilled: OF; onrejected?: OR }): Promise<[OR, null] | [null, OF]> {
+    if (!opts)
+      return p.then(
+        (r) => [null, r],
+        (e) => [e, null],
+      );
+
+    if ("onrejected" in opts)
+      return p.then(
+        () => [null, opts.onfulfilled],
+        () => [opts.onrejected as OR, null],
+      );
+
+    return p.then(
+      () => [null, opts.onfulfilled],
+      (reason: OR) => [reason, null],
     );
   }
 
