@@ -1,11 +1,12 @@
 import { InjectedContext } from "@superbees/browser";
+import { BrowserContext } from "playwright";
 
 export interface ExtensionData {
   id: string;
   version: string;
 }
 export type ExtensionsData = Record<string, ExtensionData>;
-export async function getChromeExtensionsData(context: InjectedContext) {
+export async function getChromeExtensionsData(context: InjectedContext | BrowserContext) {
   const extensionsData: ExtensionsData = {};
   const page = await context.newPage();
 

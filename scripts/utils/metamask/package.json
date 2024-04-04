@@ -1,0 +1,8 @@
+{
+  "name": "@superbees-script-utils/metamask",
+  "version": "0.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@superbees/script": "workspace:*"
+  }
+}
