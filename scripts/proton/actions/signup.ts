@@ -7,10 +7,10 @@ import * as script from "@superbees/script";
 import Proton from "../../utils/proton/src/proton";
 
 async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
-  const proxy = await opts.proxy.requestProxy("dataimpulse", { sticky: true });
+  const proxy = await opts.proxy.requestProxy("nodemaven", { sticky: true });
   const context = await opts.browser.newContext("", {
     driverType: "chromium",
-    fingerprintOptions: { screen: { maxWidth: 1440 } },
+    fingerprintOptions: { browsers: ["chrome"] },
     browserContextOptions: { proxy: { server: proxy.server } },
   });
   await context.cache.attachCacheHandlers((url) =>
@@ -146,7 +146,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
       await context.close();
     }
 
-    await opts.proxy.releaseProxy("dataimpulse", proxy);
+    await opts.proxy.releaseProxy("nodemaven", proxy);
   }
 }
 
