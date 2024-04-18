@@ -109,8 +109,8 @@ class Twitter extends script.SuperbeesScript {
   }
 
   private async unlock_account(account: Partial<Account>, pg = this.page) {
-    const [isLocked] = await this.unThrow(pg.waitForURL(/^https:\/\/twitter\.com\/account\/access.*/, { waitUntil: "load" }), { onfulfilled: true, onrejected: false });
-    if (!isLocked) throw `Account ("${account.username}") is not locked`;
+    // const [isLocked] = await this.unThrow(pg.waitForURL(/^https:\/\/twitter\.com\/account\/access.*/, { waitUntil: "load" }), { onfulfilled: true, onrejected: false });
+    // if (!isLocked) throw `Account ("${account.username}") is not locked`;
 
     const start_btn_selector = `input[type="submit"][value="Start"]`;
     let [, start_btn] = await this.unThrow(this.waitFor(start_btn_selector));
@@ -166,6 +166,7 @@ class Twitter extends script.SuperbeesScript {
       await this.waitUntilStable();
 
       flow = await this.get_login_flow(undefined, pg);
+      console.log({ flow });
       if (flow === "unlock") await this.unlock_account(account, pg);
     }
 
@@ -214,6 +215,7 @@ class Twitter extends script.SuperbeesScript {
 
     flow = await this.get_login_flow();
     if (!flow || flow === "unknown") throw `unknown login flow (status=${flow})`;
+    console.log(flow);
     if (flow === "unlock") await this.unlock_account(account, pg);
     status = AccountStatus.VERIFIED;
 

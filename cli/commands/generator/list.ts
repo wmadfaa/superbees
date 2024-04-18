@@ -26,6 +26,7 @@ class GeneratorList implements yargs.CommandModule<unknown, actions.HandleOnGene
 
   public async handler(args: actions.HandleOnGeneratorListArgs) {
     await pm3.connect();
+
     const background_process = await pm3.find_process((p) => p.name === constants.BACKGROUND_PROCESS_NAME);
     if (!isNumber(background_process?.pm_id)) return console.error(`"${constants.BACKGROUND_PROCESS_NAME}" not found!`);
 
@@ -37,7 +38,10 @@ class GeneratorList implements yargs.CommandModule<unknown, actions.HandleOnGene
       });
 
       for await (const message of response.createIterableResponseStream()) {
-        if ("data" in message) console.log(message.data);
+        if ("data" in message) {
+          const [uid, { payload, state }] = message.data as any;
+          console.log(`${uid} | ${payload.script}: [ ${state} ]`);
+        }
       }
     } catch (err) {
       console.error(err);

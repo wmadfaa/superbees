@@ -7,7 +7,7 @@ import * as pm3 from "@superbees/pm3";
 import * as constants from "../../helpers/constants";
 
 class GeneratorPause implements yargs.CommandModule<unknown, actions.HandleOnGeneratorPauseArgs> {
-  public command = `generator:pause <id>`;
+  public command = `generator:pause <generatorId>`;
   public describe = "pause some or all generators";
 
   public builder(yargs: yargs.Argv) {
@@ -37,7 +37,10 @@ class GeneratorPause implements yargs.CommandModule<unknown, actions.HandleOnGen
       });
 
       for await (const message of response.createIterableResponseStream()) {
-        if ("data" in message) console.log(message.data);
+        if ("data" in message) {
+          const { id, prev, generator } = message.data as any;
+          console.log(`${id} | ${generator.payload.script}: [ ${prev} → ${generator.state} ]`);
+        }
       }
     } catch (err) {
       console.error(err);
