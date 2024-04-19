@@ -75,7 +75,15 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     await $.waitAndClick(`//button[text()="Continue with Free"]`);
     await $.waitUntilStable();
 
-    await $.waitFor(`//h1[text()="Verification"]`);
+    const after_plan_select_state = await $.raceUntilLocator([
+      [`//h1[text()="Verification"]`, { onfulfilled: "verification", onrejected: "unknown" }],
+      [`//button[text()="No, thanks"]`, { onfulfilled: "special-offer", onrejected: "unknown" }],
+    ]);
+
+    if (after_plan_select_state === "special-offer") {
+      await $.waitAndClick(`//button[text()="No, thanks"]`);
+      await $.waitUntilStable();
+    }
 
     const state = await $.raceUntilLocator([
       [`//button[@data-testid="tab-header-captcha-button" and @aria-selected="true"]`, { onfulfilled: "captcha-tab-selected", onrejected: "unknown" }],

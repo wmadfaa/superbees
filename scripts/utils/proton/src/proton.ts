@@ -21,7 +21,7 @@ class Proton extends script.SuperbeesScript {
     super(page);
   }
   async login(email: Pick<Email, "username" | "password">) {
-    await this.page.goto("https://account.proton.me/login");
+    await this.page.goto("https://mail.proton.me");
     const state = await async.retry<string, string>({ times: 20, interval: 1000 }, async (callback) => {
       const $state = await this.raceUntilLocator([
         [`//p[text()="Loading Proton Account"]`, { onfulfilled: "loading", onrejected: "unknown", timeout: 100 }],
