@@ -40,7 +40,6 @@ export function createGenerator(generator: Obj<Generator>, args: HandleOnGenerat
   };
 
   const scheduledTask = cron.schedule(args.cron, async () => {
-    console.table([pick(generator.ref, "pending_runs", "running_runs", "completed_runs", "failed_runs")]);
     if (generator.ref.state !== GeneratorState.ACTIVE) return;
     const cursor = generator.ref.pending_runs + generator.ref.running_runs + generator.ref.completed_runs + generator.ref.failed_runs;
     const max_allowed_agents = Math.min(args.agents, Math.max(0, args.runs - cursor));

@@ -32,6 +32,7 @@ const proxy = new SuperbeesProxy(credentials["proxy-services"]);
   actions.handleOnGeneratorTrack(generators);
   actions.handleOnGeneratorList(generators);
   actions.handleOnGeneratorPause(generators);
+  actions.handleOnGeneratorActivate(generators);
   actions.handleOnGeneratorComplete(generators);
 
   actions.handleOnTaskCreate(tasks, scheduledTasks, queue);

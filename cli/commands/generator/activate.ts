@@ -6,9 +6,9 @@ import * as pm3 from "@superbees/pm3";
 
 import * as constants from "../../helpers/constants";
 
-class GeneratorComplete implements yargs.CommandModule<unknown, actions.HandleOnGeneratorCompleteArgs> {
-  public command = `generator:complete <generatorId>`;
-  public describe = "stop some or all generators";
+class GeneratorActivate implements yargs.CommandModule<unknown, actions.HandleOnGeneratorActivateArgs> {
+  public command = `generator:activate <generatorId>`;
+  public describe = "activate some or all generators";
 
   public builder(yargs: yargs.Argv) {
     return yargs
@@ -21,10 +21,10 @@ class GeneratorComplete implements yargs.CommandModule<unknown, actions.HandleOn
         describe: "filter by script",
         type: "string",
       })
-      .help() as yargs.Argv<actions.HandleOnGeneratorCompleteArgs>;
+      .help() as yargs.Argv<actions.HandleOnGeneratorActivateArgs>;
   }
 
-  public async handler(args: actions.HandleOnGeneratorCompleteArgs) {
+  public async handler(args: actions.HandleOnGeneratorActivateArgs) {
     await pm3.connect();
     const background_process = await pm3.find_process((p) => p.name === constants.BACKGROUND_PROCESS_NAME);
     if (!isNumber(background_process?.pm_id)) return console.error(`"${constants.BACKGROUND_PROCESS_NAME}" not found!`);
@@ -33,7 +33,7 @@ class GeneratorComplete implements yargs.CommandModule<unknown, actions.HandleOn
       const response = await pm3.sendRequestToProcess(background_process.pm_id, {
         type: "process:msg",
         data: args,
-        topic: "generator:complete",
+        topic: "generator:activate",
       });
 
       for await (const message of response.createIterableResponseStream()) {
@@ -50,4 +50,4 @@ class GeneratorComplete implements yargs.CommandModule<unknown, actions.HandleOn
   }
 }
 
-export default new GeneratorComplete();
+export default new GeneratorActivate();

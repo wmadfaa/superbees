@@ -10,6 +10,7 @@ import generatorCreateCommand from "./commands/generator/create";
 import generatorCompleteCommand from "./commands/generator/complete";
 import generatorTrackCommand from "./commands/generator/track";
 import generatorPauseCommand from "./commands/generator/pause";
+import generatorActivateCommand from "./commands/generator/activate";
 import generatorListCommand from "./commands/generator/list";
 
 import taskCreateCommand from "./commands/task/create";
@@ -30,6 +31,7 @@ yargs(hideBin(process.argv))
   .command(generatorCompleteCommand)
   .command(generatorTrackCommand)
   .command(generatorPauseCommand)
+  .command(generatorActivateCommand)
   .command(generatorListCommand)
 
   .help().argv;
