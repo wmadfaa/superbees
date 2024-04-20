@@ -11,4 +11,5 @@ export * from "./task/create";
 export * from "./task/track";
 export * from "./task/list";
 export * from "./task/pause";
+export * from "./task/activate";
 export * from "./task/complete";

@@ -1,3 +1,6 @@
+require("events").EventEmitter.prototype._maxListeners = 100;
+require("events").defaultMaxListeners = 100;
+
 import cron from "node-cron";
 
 import SuperbeesBrowser from "@superbees/browser";
@@ -39,6 +42,7 @@ const proxy = new SuperbeesProxy(credentials["proxy-services"]);
   actions.handleOnTaskTrack(tasks);
   actions.handleOnTaskList(tasks);
   actions.handleOnTaskPause(tasks);
+  actions.handleOnTaskActivate(tasks);
   actions.handleOnTaskComplete(tasks);
 
   actions.handleOnScriptRun({ browser, uncaptcha, proxy, prisma: db });

@@ -2,7 +2,8 @@ import Obj, { ObjSetArgs } from "../../obj";
 import { TaskState, TaskWithEntities } from "../../prisma-client";
 
 import * as pm3 from "@superbees/pm3";
-import { cloneDeep, debounce, pick } from "lodash";
+import { cloneDeep, debounce } from "lodash";
+import { promisify } from "node:util";
 
 export interface HandleOnTaskTrackArgs {
   script?: string;
@@ -14,17 +15,23 @@ export function handleOnTaskTrack(tasks: Map<string, Obj<TaskWithEntities>>) {
     const observer = debounce(async (args: ObjSetArgs<TaskWithEntities>) => {
       const [target, p, newValue] = cloneDeep(args);
       Reflect.set(target, p, newValue);
-      process.send(pick(target, "state", "pending_runs", "running_runs", "completed_runs", "failed_runs"));
+      if (target.state === TaskState.COMPLETED) {
+        process.complete();
+      } else {
+        process.send(target, true);
+      }
     });
 
-    tasks.forEach((obj, id) => {
+    for (const [id, obj] of tasks) {
+      await promisify(setTimeout)(100);
       const apply_to_all_cond = !taskId && !script && obj.ref.state === TaskState.ACTIVE;
       const apply_to_script_cond = (obj.ref.payload as any).script === script;
       const apply_to_id_cond = id === taskId;
 
       if (apply_to_all_cond || apply_to_script_cond || apply_to_id_cond) {
+        process.send(obj.ref, true);
         obj.subscribe("set", observer);
       }
-    });
+    }
   });
 }

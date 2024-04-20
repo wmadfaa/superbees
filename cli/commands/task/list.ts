@@ -37,7 +37,10 @@ class TaskList implements yargs.CommandModule<unknown, actions.HandleOnTaskListA
       });
 
       for await (const message of response.createIterableResponseStream()) {
-        if ("data" in message) console.log(message.data);
+        if ("data" in message) {
+          const [uid, { payload, state }] = message.data as any;
+          console.log(`${uid} | ${payload.script}: [ ${state} ]`);
+        }
       }
     } catch (err) {
       console.error(err);

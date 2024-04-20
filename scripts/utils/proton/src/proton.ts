@@ -35,7 +35,7 @@ class Proton extends script.SuperbeesScript {
     if (!/login:form|mail:app/.test(state)) throw `unknown flow`;
     if (state === "login:form") {
       await this.waitAndFill(`//input[@id="username"]`, email.username);
-      await this.waitAndFill(`//input[@id="password"]`, email.username);
+      await this.waitAndFill(`//input[@id="password"]`, email.password);
       await this.waitAndClick(`//input[@id="staySignedIn"]`);
       await this.waitAndClick(`//button[text()="Sign in"]`);
       await this.unThrow(this.waitFor(`//button[text()="Signing in" and @aria-busy="true"]`, { state: "hidden" }));

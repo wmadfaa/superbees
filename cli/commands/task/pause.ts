@@ -37,7 +37,10 @@ class TaskPause implements yargs.CommandModule<unknown, actions.HandleOnTaskPaus
       });
 
       for await (const message of response.createIterableResponseStream()) {
-        if ("data" in message) console.log(message.data);
+        if ("data" in message) {
+          const { id, prev, task } = message.data as any;
+          console.log(`${id} | ${task.payload.script}: [ ${prev} → ${task.state} ]`);
+        }
       }
     } catch (err) {
       console.error(err);

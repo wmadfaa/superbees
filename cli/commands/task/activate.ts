@@ -6,9 +6,9 @@ import * as pm3 from "@superbees/pm3";
 
 import * as constants from "../../helpers/constants";
 
-class TaskComplete implements yargs.CommandModule<unknown, actions.HandleOnTaskCompleteArgs> {
-  public command = `task:complete <id>`;
-  public describe = "stop some or all tasks";
+class TaskActivate implements yargs.CommandModule<unknown, actions.HandleOnTaskActivateArgs> {
+  public command = `task:activate <taskId>`;
+  public describe = "activate some or all tasks";
 
   public builder(yargs: yargs.Argv) {
     return yargs
@@ -21,10 +21,10 @@ class TaskComplete implements yargs.CommandModule<unknown, actions.HandleOnTaskC
         describe: "filter by script",
         type: "string",
       })
-      .help() as yargs.Argv<actions.HandleOnTaskCompleteArgs>;
+      .help() as yargs.Argv<actions.HandleOnTaskActivateArgs>;
   }
 
-  public async handler(args: actions.HandleOnTaskCompleteArgs) {
+  public async handler(args: actions.HandleOnTaskActivateArgs) {
     await pm3.connect();
     const background_process = await pm3.find_process((p) => p.name === constants.BACKGROUND_PROCESS_NAME);
     if (!isNumber(background_process?.pm_id)) return console.error(`"${constants.BACKGROUND_PROCESS_NAME}" not found!`);
@@ -33,7 +33,7 @@ class TaskComplete implements yargs.CommandModule<unknown, actions.HandleOnTaskC
       const response = await pm3.sendRequestToProcess(background_process.pm_id, {
         type: "process:msg",
         data: args,
-        topic: "task:complete",
+        topic: "task:activate",
       });
 
       for await (const message of response.createIterableResponseStream()) {
@@ -50,4 +50,4 @@ class TaskComplete implements yargs.CommandModule<unknown, actions.HandleOnTaskC
   }
 }
 
-export default new TaskComplete();
+export default new TaskActivate();

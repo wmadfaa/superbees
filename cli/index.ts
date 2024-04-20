@@ -17,6 +17,7 @@ import taskCreateCommand from "./commands/task/create";
 import taskCompleteCommand from "./commands/task/complete";
 import taskTrackCommand from "./commands/task/track";
 import taskPauseCommand from "./commands/task/pause";
+import taskActivateCommand from "./commands/task/activate";
 import taskListCommand from "./commands/task/list";
 
 yargs(hideBin(process.argv))
@@ -26,6 +27,7 @@ yargs(hideBin(process.argv))
   .command(taskCompleteCommand)
   .command(taskTrackCommand)
   .command(taskPauseCommand)
+  .command(taskActivateCommand)
   .command(taskListCommand)
   .command(generatorCreateCommand)
   .command(generatorCompleteCommand)

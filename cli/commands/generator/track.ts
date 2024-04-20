@@ -46,7 +46,7 @@ class GeneratorTrack implements yargs.CommandModule<unknown, actions.HandleOnGen
 
       for await (const message of response.createIterableResponseStream()) {
         if ("data" in message) {
-          const { id, payload, failed_runs, completed_runs, running_runs, pending_runs } = message.data as any;
+          const { payload, failed_runs, completed_runs, running_runs, pending_runs } = message.data as any;
 
           if (!total_runs_bar) total_runs_bar = bars.create(payload.runs, completed_runs + failed_runs, {}, { format: " {bar} | total | {value}/{total}" });
           else total_runs_bar.update(completed_runs + failed_runs);
