@@ -33,7 +33,7 @@ class Tutanota extends script.SuperbeesScript {
   async login(email: Pick<Email, "username" | "password">) {
     await this.go_to_root_if_needed();
 
-    const login_with_credentials_button = `//button[@aria-label="Log in"]`;
+    const login_with_credentials_button = `//button[@title="Log in"]`;
     const should_login_with_credentials = await this.raceUntilLocator([
       [login_with_credentials_button, { onfulfilled: true, onrejected: "unknown" }],
       [`//button[@title="${email.username}"]`, { onfulfilled: false, onrejected: "unknown" }],

@@ -8,50 +8,122 @@ datasource db {
 }
 
 model Entity {
-  id String @id @default(cuid())
-
+  id        String       @id @default(cuid())
   firstname String
   lastname  String
   birthdate DateTime
   gender    String
   country   String
-  browser   Json     @default("{}")
-  metadata  Json     @default("{}")
-
-  emailId String @unique
-  email   Email  @relation(fields: [emailId], references: [id])
-
-  wallets  Wallet[]
-  accounts Account[]
-  airdrops Airdrop[]
-
-  tasks EntityTask[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-enum WalletType {
-  EVM
+  browser   Json         @default("{}")
+  metadata  Json         @default("{}")
+  emailId   String       @unique
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  accounts  Account?
+  airdrops  Airdrop?
+  email     Email        @relation(fields: [emailId], references: [id])
+  tasks     EntityTask[]
+  wallets   Wallet?
 }
 
 model Wallet {
-  id String @id @default(cuid())
-
+  id         String     @id @default(cuid())
   type       WalletType
   publicKey  String
   privateKey String
   mnemonic   String
   password   String
   metadata   Json       @default("{}")
-
-  entityId String @unique
-  entity   Entity @relation(fields: [entityId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  entityId   String     @unique
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  entity     Entity     @relation(fields: [entityId], references: [id])
 
   @@unique([entityId, type])
+}
+
+model Email {
+  id        String        @id @default(cuid())
+  platform  EmailPlatform
+  username  String
+  password  String
+  status    EmailStatus   @default(UNKNOWN)
+  metadata  Json          @default("{}")
+  usedBy    String[]      @default([])
+  parentId  String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  accounts  Account?
+  parent    Email?        @relation("EmailToEmail", fields: [parentId], references: [id])
+  children  Email[]       @relation("EmailToEmail")
+  entity    Entity?
+}
+
+model Account {
+  id        String          @id @default(cuid())
+  platform  AccountPlatform
+  username  String          @default("")
+  password  String
+  status    AccountStatus   @default(UNKNOWN)
+  metadata  Json            @default("{}")
+  usedBy    String[]        @default([])
+  entityId  String          @unique
+  emailId   String          @unique
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  email     Email           @relation(fields: [emailId], references: [id])
+  entity    Entity          @relation(fields: [entityId], references: [id])
+
+  @@unique([entityId, platform], name: "entityId_platform")
+  @@unique([emailId, platform], name: "emailId_platform")
+}
+
+model Airdrop {
+  id        String        @id @default(cuid())
+  name      String
+  status    AccountStatus @default(UNKNOWN)
+  metadata  Json          @default("{}")
+  entityId  String        @unique
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  entity    Entity        @relation(fields: [entityId], references: [id])
+
+  @@unique([entityId, name])
+}
+
+model Generator {
+  id             String         @id @default(cuid())
+  payload        Json
+  state          GeneratorState @default(ACTIVE)
+  pending_runs   Int            @default(0)
+  running_runs   Int            @default(0)
+  completed_runs Int            @default(0)
+  failed_runs    Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model Task {
+  id        String       @id @default(cuid())
+  payload   Json
+  state     TaskState    @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  entities  EntityTask[]
+}
+
+model EntityTask {
+  entityId String
+  taskId   String
+  state    EntityTaskState
+  entity   Entity          @relation(fields: [entityId], references: [id])
+  task     Task            @relation(fields: [taskId], references: [id])
+
+  @@id([entityId, taskId])
+}
+
+enum WalletType {
+  EVM
 }
 
 enum EmailStatus {
@@ -67,27 +139,6 @@ enum EmailPlatform {
   GMAIL
 }
 
-model Email {
-  id String @id @default(cuid())
-
-  platform EmailPlatform
-  username String
-  password String
-  status   EmailStatus   @default(UNKNOWN)
-  metadata Json          @default("{}")
-  usedBy   String[]      @default([])
-
-  entity   Entity?
-  accounts Account[]
-
-  parentId String?
-  parent   Email?  @relation("EmailToEmail", fields: [parentId], references: [id])
-  children Email[] @relation("EmailToEmail")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 enum AccountStatus {
   UNKNOWN
   PENDING
@@ -99,49 +150,11 @@ enum AccountPlatform {
   TWITTER
 }
 
-model Account {
-  id String @id @default(cuid())
-
-  platform AccountPlatform
-  username String          @default("")
-  password String
-  status   AccountStatus   @default(UNKNOWN)
-  metadata Json            @default("{}")
-  usedBy   String[]        @default([])
-
-  entityId String @unique
-  entity   Entity @relation(fields: [entityId], references: [id])
-
-  emailId String @unique
-  email   Email  @relation(fields: [emailId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([entityId, platform], name: "entityId_platform")
-  @@unique([emailId, platform], name: "emailId_platform")
-}
-
 enum AirdropStatus {
   UNKNOWN
   PENDING
   VERIFIED
   BLOCKED
-}
-
-model Airdrop {
-  id       String        @id @default(cuid())
-  name     String
-  status   AccountStatus @default(UNKNOWN)
-  metadata Json          @default("{}")
-
-  entityId String @unique
-  entity   Entity @relation(fields: [entityId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([entityId, name])
 }
 
 enum GeneratorState {
@@ -151,21 +164,6 @@ enum GeneratorState {
   CANCELED
 }
 
-model Generator {
-  id String @id @default(cuid())
-
-  payload Json
-  state   GeneratorState @default(ACTIVE)
-
-  pending_runs   Int @default(0)
-  running_runs   Int @default(0)
-  completed_runs Int @default(0)
-  failed_runs    Int @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 enum TaskState {
   ACTIVE
   PAUSED
@@ -173,33 +171,9 @@ enum TaskState {
   CANCELED
 }
 
-model Task {
-  id String @id @default(cuid())
-
-  payload Json
-  state   TaskState @default(ACTIVE)
-
-  entities EntityTask[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 enum EntityTaskState {
   PENDING
   RUNNING
   FAILED
   SUCCEEDED
-}
-
-model EntityTask {
-  entityId String
-  entity   Entity @relation(fields: [entityId], references: [id])
-
-  taskId String
-  task   Task   @relation(fields: [taskId], references: [id])
-
-  state EntityTaskState
-
-  @@id([entityId, taskId])
 }

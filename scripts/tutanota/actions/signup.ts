@@ -43,11 +43,11 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
 
     opts.logger.info(`select account domain`);
     await $.waitAndClick(`//button[@title="Domain"]`);
-    await $.waitFor(`//div[@role="menu"]`);
-    const count = await page.locator(`//button[@role="menuitem" and not(descendant::*[local-name() = 'svg'])]`).count();
-    await $.waitAndClick(`//button[@role="menuitem" and not(descendant::*[local-name() = 'svg'])][${faker.number.int({ min: 1, max: count })}]`);
+    await $.waitFor(`//div[@role="Menu"]`);
+    const count = await page.locator(`//button[@role="option" and not(descendant::*[local-name() = 'svg'])]`).count();
+    await $.waitAndClick(`//button[@role="option" and not(descendant::*[local-name() = 'svg'])][${faker.number.int({ min: 1, max: count })}]`);
     await script.utils.sleep(100);
-    const domain = await page.locator(`//button[@title='Domain' and @aria-label='Domain']/preceding-sibling::div[1]`).textContent();
+    const domain = await page.locator(`//button[@title='Domain']/preceding-sibling::div[1]`).textContent();
     if (!domain) throw `couldn't get the selected account domain`;
     storeDB.domain = domain;
 
@@ -71,7 +71,7 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
     await async.retry({ times: 1000, interval: 100 }, async (callback) => {
       const s = await $.raceUntilLocator([
         [`//small[.//*[text()="Please enter a new password."]]`, { onfulfilled: "empty", onrejected: "unknown", timeout: 100 }],
-        [`//small[.//*[text()="Password ok."]]`, { onfulfilled: "ok", onrejected: "unknown", timeout: 100 }],
+        [`//label[text()="Set password"]//following-sibling::small[.//*[text()="Password ok."]]`, { onfulfilled: "ok", onrejected: "unknown", timeout: 100 }],
         [`//small[.//*[text()="Password is not secure enough."]]`, { onfulfilled: "unsecure", onrejected: "unknown", timeout: 100 }],
       ]);
       if (s === "ok") return callback(null);
@@ -84,9 +84,9 @@ async function signup(opts: script.SuperbeesScriptFunctionOptions<unknown>) {
 
     await async.retry({ times: 1000, interval: 100 }, async (callback) => {
       const s = await $.raceUntilLocator([
-        [`//small[./*[text()="Please confirm your password."]]`, { onfulfilled: "empty", onrejected: "unknown", timeout: 100 }],
-        [`//small[./*[text()="Password ok."]]`, { onfulfilled: "ok", onrejected: "unknown", timeout: 100 }],
-        [`//small[./*[text()="Confirmed password is different."]]`, { onfulfilled: "different", onrejected: "unknown", timeout: 100 }],
+        [`//small[.//*[text()="Please confirm your password."]]`, { onfulfilled: "empty", onrejected: "unknown", timeout: 100 }],
+        [`//label[text()="Repeat password"]//following-sibling::small[.//*[text()="Password ok."]]`, { onfulfilled: "ok", onrejected: "unknown", timeout: 100 }],
+        [`//small[.//*[text()="Confirmed password is different."]]`, { onfulfilled: "different", onrejected: "unknown", timeout: 100 }],
       ]);
       if (s === "ok") return callback(null);
       if (/different|empty/.test(s!)) {
